@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">AskLilOwl bird flight test image</title>
+  <desc id="desc">A simple educational diagram showing a bird flying with arrows for lift and thrust.</desc>
+  <rect width="1200" height="675" fill="#f8f4ff"/>
+  <circle cx="960" cy="115" r="55" fill="#ffd86b"/>
+  <g transform="translate(600 345)">
+    <ellipse cx="0" cy="0" rx="150" ry="85" fill="#8b5e3c"/>
+    <circle cx="120" cy="-45" r="58" fill="#a96f45"/>
+    <circle cx="140" cy="-55" r="11" fill="#1f1b2e"/>
+    <polygon points="175,-40 230,-20 175,-5" fill="#ef8a47"/>
+    <path d="M-35,-25 C-185,-180 -315,-145 -380,-85 C-245,-110 -155,-35 -65,45 Z" fill="#6f4a34"/>
+    <path d="M-45,25 C-175,170 -300,150 -365,95 C-230,115 -145,55 -65,-30 Z" fill="#7c5137"/>
+    <path d="M-125,20 L-245,95 L-135,70 Z" fill="#5f3d2b"/>
+  </g>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#534ab7"/>
+    </marker>
+  </defs>
+  <line x1="610" y1="270" x2="610" y2="125" stroke="#534ab7" stroke-width="12" marker-end="url(#arrow)"/>
+  <text x="635" y="170" font-family="Arial, sans-serif" font-size="42" font-weight="700" fill="#534ab7">Lift</text>
+  <line x1="430" y1="390" x2="250" y2="390" stroke="#ef9f27" stroke-width="12" marker-end="url(#arrow)"/>
+  <text x="250" y="450" font-family="Arial, sans-serif" font-size="42" font-weight="700" fill="#b06d0f">Thrust</text>
+  <text x="60" y="70" font-family="Arial, sans-serif" font-size="38" font-weight="700" fill="#1f1b2e">AskLilOwl image handoff test</text>
+</svg>
