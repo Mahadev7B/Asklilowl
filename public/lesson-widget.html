@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AskLilOwl lesson</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #fdf8f3;
+      --surface: #ffffff;
+      --ink: #1f1b2e;
+      --muted: #696477;
+      --line: rgba(31, 27, 46, 0.12);
+      --accent: #534ab7;
+      --accent-soft: #eeedfe;
+      --warm: #ef9f27;
+      --good: #287a45;
+      --bad: #b83b35;
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      padding: 14px;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .shell {
+      width: min(760px, 100%);
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 14px 40px rgba(31, 27, 46, 0.09);
+    }
+
+    header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .brand { font-weight: 800; font-size: 1.08rem; }
+    .brand span { color: var(--warm); }
+    .lesson-title { margin-top: 4px; font-size: 1.25rem; font-weight: 720; }
+    .summary { margin-top: 5px; color: var(--muted); font-size: .92rem; line-height: 1.45; }
+    .badge {
+      flex: 0 0 auto;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      padding: 6px 10px;
+      font-size: .78rem;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+
+    .empty {
+      padding: 42px 22px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .lesson[hidden], .quiz[hidden], .empty[hidden] { display: none; }
+
+    .visual {
+      aspect-ratio: 16 / 9;
+      background: linear-gradient(145deg, #f3f1ff, #fff7e8);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .visual img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .image-placeholder {
+      max-width: 360px;
+      padding: 18px;
+      text-align: center;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .slide-body { padding: 22px; }
+    .progress-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: .82rem;
+      margin-bottom: 8px;
+    }
+
+    .progress {
+      height: 6px;
+      flex: 1;
+      border-radius: 999px;
+      background: #eceaf1;
+      overflow: hidden;
+    }
+    .progress > div { height: 100%; background: var(--accent); transition: width .2s ease; }
+
+    h2 { margin: 10px 0 10px; font-size: 1.45rem; line-height: 1.2; }
+    .body-copy { margin: 0; line-height: 1.65; font-size: 1rem; white-space: pre-line; }
+    .fun-fact {
+      margin-top: 16px;
+      padding: 12px 14px;
+      background: #fff7e8;
+      border: 1px solid rgba(239, 159, 39, .22);
+      border-radius: 12px;
+      font-size: .92rem;
+      line-height: 1.5;
+    }
+    .fun-fact strong { color: #9b6412; }
+
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 0 22px 22px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 10px 15px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .45; cursor: default; }
+    .secondary { background: #f2f0f5; color: var(--ink); }
+    .primary { background: var(--accent); color: white; }
+
+    .quiz { padding: 22px; }
+    .quiz h2 { margin-top: 0; }
+    .quiz-meta { color: var(--muted); font-size: .85rem; margin-bottom: 8px; }
+    .choices { display: grid; gap: 9px; margin-top: 16px; }
+    .choice {
+      width: 100%;
+      text-align: left;
+      background: #f7f6fa;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      font-weight: 600;
+    }
+    .choice.correct { border-color: var(--good); background: #edf8f0; color: #1f6638; }
+    .choice.wrong { border-color: var(--bad); background: #fff0ee; color: #91322d; }
+    .feedback { min-height: 44px; margin-top: 13px; color: var(--muted); line-height: 1.45; }
+    .quiz-actions { margin-top: 14px; display: flex; justify-content: flex-end; }
+    .score { text-align: center; padding: 34px 12px; }
+    .score strong { display: block; font-size: 2rem; margin: 8px 0; color: var(--accent); }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #17151d;
+        --surface: #211e29;
+        --ink: #f5f2f8;
+        --muted: #b8b2c2;
+        --line: rgba(255,255,255,.10);
+        --accent-soft: #312d58;
+      }
+      .progress { background: #393541; }
+      .secondary, .choice { background: #302c38; color: var(--ink); }
+      .fun-fact { background: #392f20; }
+      .visual { background: linear-gradient(145deg, #292544, #382d21); }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div id="empty" class="empty">
+      <div class="brand">AskLil<span>Owl</span></div>
+      <p>Your visual lesson will appear here.</p>
+    </div>
+
+    <section id="lesson" class="lesson" hidden>
+      <header>
+        <div>
+          <div class="brand">AskLil<span>Owl</span></div>
+          <div id="lesson-title" class="lesson-title"></div>
+          <div id="summary" class="summary"></div>
+        </div>
+        <div id="depth" class="badge"></div>
+      </header>
+
+      <div id="visual" class="visual"></div>
+
+      <div class="slide-body">
+        <div class="progress-row">
+          <span id="counter"></span>
+          <div class="progress"><div id="progress-fill"></div></div>
+        </div>
+        <h2 id="slide-title"></h2>
+        <p id="slide-body" class="body-copy"></p>
+        <div id="fun-fact" class="fun-fact" hidden><strong>Did you know?</strong> <span></span></div>
+      </div>
+
+      <div class="controls">
+        <button id="prev" class="secondary" type="button">← Previous</button>
+        <button id="next" class="primary" type="button">Next →</button>
+      </div>
+    </section>
+
+    <section id="quiz" class="quiz" hidden>
+      <div id="quiz-content">
+        <div id="quiz-meta" class="quiz-meta"></div>
+        <h2 id="quiz-question"></h2>
+        <div id="choices" class="choices"></div>
+        <div id="feedback" class="feedback"></div>
+        <div class="quiz-actions">
+          <button id="quiz-next" class="primary" type="button" disabled>Next question</button>
+        </div>
+      </div>
+      <div id="score" class="score" hidden></div>
+    </section>
+  </main>
+
+  <script type="module">
+    const emptyEl = document.querySelector("#empty");
+    const lessonEl = document.querySelector("#lesson");
+    const quizEl = document.querySelector("#quiz");
+    const titleEl = document.querySelector("#lesson-title");
+    const summaryEl = document.querySelector("#summary");
+    const depthEl = document.querySelector("#depth");
+    const visualEl = document.querySelector("#visual");
+    const counterEl = document.querySelector("#counter");
+    const progressFillEl = document.querySelector("#progress-fill");
+    const slideTitleEl = document.querySelector("#slide-title");
+    const slideBodyEl = document.querySelector("#slide-body");
+    const funFactEl = document.querySelector("#fun-fact");
+    const prevEl = document.querySelector("#prev");
+    const nextEl = document.querySelector("#next");
+
+    const quizMetaEl = document.querySelector("#quiz-meta");
+    const quizQuestionEl = document.querySelector("#quiz-question");
+    const choicesEl = document.querySelector("#choices");
+    const feedbackEl = document.querySelector("#feedback");
+    const quizNextEl = document.querySelector("#quiz-next");
+    const quizContentEl = document.querySelector("#quiz-content");
+    const scoreEl = document.querySelector("#score");
+
+    let lesson = null;
+    let slideIndex = 0;
+    let quizIndex = 0;
+    let score = 0;
+    let answered = false;
+
+    const getSlideImage = (slide) => {
+      if (!lesson?.images || typeof slide?.imageIndex !== "number") return null;
+      return lesson.images[slide.imageIndex] ?? null;
+    };
+
+    const renderVisual = (slide) => {
+      visualEl.replaceChildren();
+      const image = getSlideImage(slide);
+      if (image?.url) {
+        const img = document.createElement("img");
+        img.src = image.url;
+        img.alt = slide.imageAlt || slide.title || "Lesson illustration";
+        img.referrerPolicy = "no-referrer";
+        img.addEventListener("error", () => {
+          visualEl.replaceChildren();
+          const fallback = document.createElement("div");
+          fallback.className = "image-placeholder";
+          fallback.textContent = slide.imageAlt || "The image file was received, but this preview URL could not be rendered in the widget.";
+          visualEl.appendChild(fallback);
+        });
+        visualEl.appendChild(img);
+        return;
+      }
+
+      const placeholder = document.createElement("div");
+      placeholder.className = "image-placeholder";
+      placeholder.textContent = slide.imageAlt || "No image was attached to this slide yet.";
+      visualEl.appendChild(placeholder);
+    };
+
+    const renderSlide = () => {
+      const slide = lesson.slides[slideIndex];
+      titleEl.textContent = lesson.title;
+      summaryEl.textContent = lesson.summary || `${lesson.slideCount} slide lesson for ${lesson.audience}`;
+      depthEl.textContent = lesson.depth;
+      counterEl.textContent = `${slideIndex + 1} / ${lesson.slides.length}`;
+      progressFillEl.style.width = `${((slideIndex + 1) / lesson.slides.length) * 100}%`;
+      slideTitleEl.textContent = slide.title;
+      slideBodyEl.textContent = slide.body;
+
+      if (slide.funFact) {
+        funFactEl.hidden = false;
+        funFactEl.querySelector("span").textContent = slide.funFact;
+      } else {
+        funFactEl.hidden = true;
+        funFactEl.querySelector("span").textContent = "";
+      }
+
+      renderVisual(slide);
+      prevEl.disabled = slideIndex === 0;
+      nextEl.textContent = slideIndex === lesson.slides.length - 1 ? "Take quiz →" : "Next →";
+    };
+
+    const startQuiz = () => {
+      lessonEl.hidden = true;
+      quizEl.hidden = false;
+      quizContentEl.hidden = false;
+      scoreEl.hidden = true;
+      quizIndex = 0;
+      score = 0;
+      renderQuizQuestion();
+    };
+
+    const renderQuizQuestion = () => {
+      const item = lesson.quiz[quizIndex];
+      answered = false;
+      feedbackEl.textContent = "";
+      quizNextEl.disabled = true;
+      quizNextEl.textContent = quizIndex === lesson.quiz.length - 1 ? "See score" : "Next question";
+      quizMetaEl.textContent = `Question ${quizIndex + 1} of ${lesson.quiz.length}`;
+      quizQuestionEl.textContent = item.question;
+      choicesEl.replaceChildren();
+
+      item.choices.forEach((choiceText, choiceIndex) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "choice";
+        button.textContent = choiceText;
+        button.addEventListener("click", () => answerQuestion(choiceIndex));
+        choicesEl.appendChild(button);
+      });
+    };
+
+    const answerQuestion = (selectedIndex) => {
+      if (answered) return;
+      answered = true;
+      const item = lesson.quiz[quizIndex];
+      const buttons = [...choicesEl.querySelectorAll("button")];
+      const correct = selectedIndex === item.answerIndex;
+      if (correct) score += 1;
+
+      buttons.forEach((button, index) => {
+        button.disabled = true;
+        if (index === item.answerIndex) button.classList.add("correct");
+        if (index === selectedIndex && !correct) button.classList.add("wrong");
+      });
+
+      feedbackEl.textContent = `${correct ? "Correct!" : "Not quite."}${item.explanation ? ` ${item.explanation}` : ""}`;
+      quizNextEl.disabled = false;
+    };
+
+    const finishQuiz = () => {
+      quizContentEl.hidden = true;
+      scoreEl.hidden = false;
+      scoreEl.replaceChildren();
+      const heading = document.createElement("div");
+      heading.textContent = "Lesson complete";
+      const result = document.createElement("strong");
+      result.textContent = `${score} / ${lesson.quiz.length}`;
+      const note = document.createElement("div");
+      note.textContent = score === lesson.quiz.length ? "Perfect score!" : "Nice work — you can review the slides and try again anytime.";
+      const review = document.createElement("button");
+      review.type = "button";
+      review.className = "secondary";
+      review.style.marginTop = "18px";
+      review.textContent = "Review lesson";
+      review.addEventListener("click", () => {
+        slideIndex = 0;
+        quizEl.hidden = true;
+        lessonEl.hidden = false;
+        renderSlide();
+      });
+      scoreEl.append(heading, result, note, review);
+    };
+
+    prevEl.addEventListener("click", () => {
+      if (slideIndex > 0) {
+        slideIndex -= 1;
+        renderSlide();
+      }
+    });
+
+    nextEl.addEventListener("click", () => {
+      if (slideIndex < lesson.slides.length - 1) {
+        slideIndex += 1;
+        renderSlide();
+      } else {
+        startQuiz();
+      }
+    });
+
+    quizNextEl.addEventListener("click", () => {
+      if (!answered) return;
+      if (quizIndex < lesson.quiz.length - 1) {
+        quizIndex += 1;
+        renderQuizQuestion();
+      } else {
+        finishQuiz();
+      }
+    });
+
+    const updateFromResponse = (response) => {
+      const nextLesson = response?.structuredContent?.lesson;
+      if (!nextLesson?.slides?.length) return;
+      lesson = nextLesson;
+      slideIndex = 0;
+      quizIndex = 0;
+      score = 0;
+      emptyEl.hidden = true;
+      quizEl.hidden = true;
+      lessonEl.hidden = false;
+      renderSlide();
+    };
+
+    let rpcId = 0;
+    const pendingRequests = new Map();
+
+    const rpcNotify = (method, params) => {
+      window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
+    };
+
+    const rpcRequest = (method, params) =>
+      new Promise((resolve, reject) => {
+        const id = ++rpcId;
+        pendingRequests.set(id, { resolve, reject });
+        window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+      });
+
+    window.addEventListener("message", (event) => {
+      if (event.source !== window.parent) return;
+      const message = event.data;
+      if (!message || message.jsonrpc !== "2.0") return;
+
+      if (typeof message.id === "number") {
+        const pending = pendingRequests.get(message.id);
+        if (!pending) return;
+        pendingRequests.delete(message.id);
+        if (message.error) pending.reject(message.error);
+        else pending.resolve(message.result);
+        return;
+      }
+
+      if (message.method === "ui/notifications/tool-result") {
+        updateFromResponse(message.params);
+      }
+    }, { passive: true });
+
+    const initializeBridge = async () => {
+      try {
+        await rpcRequest("ui/initialize", {
+          appInfo: { name: "asklilowl-lesson-widget", version: "0.1.0" },
+          appCapabilities: {},
+          protocolVersion: "2026-01-26",
+        });
+        rpcNotify("ui/notifications/initialized", {});
+      } catch (error) {
+        console.error("AskLilOwl MCP Apps bridge initialization failed:", error);
+      }
+    };
+
+    initializeBridge();
+  </script>
+</body>
+</html>
