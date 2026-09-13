@@ -98,7 +98,11 @@ function createAskLilOwlServer() {
             ui: {
               csp: {
                 connectDomains: [],
-                resourceDomains: [PUBLIC_ORIGIN, "https://*.oaiusercontent.com"],
+                resourceDomains: [
+                  PUBLIC_ORIGIN,
+                  "https://images.pexels.com",
+                  "https://*.oaiusercontent.com"
+                ],
               },
             },
           },
