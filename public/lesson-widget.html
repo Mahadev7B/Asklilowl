@@ -260,35 +260,72 @@
     let quizIndex = 0;
     let score = 0;
     let answered = false;
+    let visualRenderToken = 0;
 
     const getSlideImage = (slide) => {
       if (!lesson?.images || typeof slide?.imageIndex !== "number") return null;
       return lesson.images[slide.imageIndex] ?? null;
     };
 
-    const renderVisual = (slide) => {
+    const resolveImageUrl = async (image) => {
+      if (image?.url) return image.url;
+      if (!image?.fileId) return null;
+
+      try {
+        if (window.openai?.getFileDownloadUrl) {
+          const result = await window.openai.getFileDownloadUrl({ fileId: image.fileId });
+          return result?.downloadUrl ?? result?.download_url ?? null;
+        }
+      } catch (error) {
+        console.error("AskLilOwl could not resolve ChatGPT image file:", error);
+      }
+
+      return null;
+    };
+
+    const renderVisual = async (slide) => {
+      const token = ++visualRenderToken;
       visualEl.replaceChildren();
       const image = getSlideImage(slide);
-      if (image?.url) {
-        const img = document.createElement("img");
-        img.src = image.url;
-        img.alt = slide.imageAlt || slide.title || "Lesson illustration";
-        img.referrerPolicy = "no-referrer";
-        img.addEventListener("error", () => {
-          visualEl.replaceChildren();
-          const fallback = document.createElement("div");
-          fallback.className = "image-placeholder";
-          fallback.textContent = slide.imageAlt || "The image file was received, but this preview URL could not be rendered in the widget.";
-          visualEl.appendChild(fallback);
-        });
-        visualEl.appendChild(img);
+
+      if (!image) {
+        const placeholder = document.createElement("div");
+        placeholder.className = "image-placeholder";
+        placeholder.textContent = slide.imageAlt || "No image was attached to this slide yet.";
+        visualEl.appendChild(placeholder);
         return;
       }
 
-      const placeholder = document.createElement("div");
-      placeholder.className = "image-placeholder";
-      placeholder.textContent = slide.imageAlt || "No image was attached to this slide yet.";
-      visualEl.appendChild(placeholder);
+      const loading = document.createElement("div");
+      loading.className = "image-placeholder";
+      loading.textContent = "Loading lesson illustration…";
+      visualEl.appendChild(loading);
+
+      const imageUrl = await resolveImageUrl(image);
+      if (token !== visualRenderToken) return;
+
+      if (!imageUrl) {
+        visualEl.replaceChildren();
+        const fallback = document.createElement("div");
+        fallback.className = "image-placeholder";
+        fallback.textContent = slide.imageAlt || "The image file was received, but its preview could not be resolved.";
+        visualEl.appendChild(fallback);
+        return;
+      }
+
+      const img = document.createElement("img");
+      img.src = imageUrl;
+      img.alt = slide.imageAlt || slide.title || "Lesson illustration";
+      img.referrerPolicy = "no-referrer";
+      img.addEventListener("error", () => {
+        if (token !== visualRenderToken) return;
+        visualEl.replaceChildren();
+        const fallback = document.createElement("div");
+        fallback.className = "image-placeholder";
+        fallback.textContent = slide.imageAlt || "The image file was received, but this preview URL could not be rendered in the widget.";
+        visualEl.appendChild(fallback);
+      });
+      visualEl.replaceChildren(img);
     };
 
     const renderSlide = () => {
@@ -461,7 +498,7 @@
     const initializeBridge = async () => {
       try {
         await rpcRequest("ui/initialize", {
-          appInfo: { name: "asklilowl-lesson-widget", version: "0.1.0" },
+          appInfo: { name: "asklilowl-lesson-widget", version: "0.1.1" },
           appCapabilities: {},
           protocolVersion: "2026-01-26",
         });
