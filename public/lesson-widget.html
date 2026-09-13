@@ -6,254 +6,181 @@
   <title>AskLilOwl lesson</title>
   <style>
     :root {
-      color-scheme: light dark;
-      --bg: #fdf8f3;
+      --bg: #fff8f0;
       --surface: #ffffff;
-      --ink: #1f1b2e;
-      --muted: #696477;
-      --line: rgba(31, 27, 46, 0.12);
-      --accent: #534ab7;
-      --accent-soft: #eeedfe;
-      --warm: #ef9f27;
-      --good: #287a45;
-      --bad: #b83b35;
-      --radius: 18px;
+      --ink: #2d3142;
+      --muted: #777386;
+      --orange: #ff6b35;
+      --yellow: #f7b801;
+      --purple: #6a4c93;
+      --cream: #fff3e8;
+      --line: rgba(255,107,53,.16);
+      --good: #257942;
+      --bad: #b53b34;
+      --shadow: 0 16px 45px rgba(106,76,147,.10);
     }
 
     * { box-sizing: border-box; }
     html, body { margin: 0; min-height: 100%; }
     body {
-      padding: 14px;
-      background: var(--bg);
+      padding: 16px;
+      background: radial-gradient(circle at top left, #fff0df 0, transparent 38%), var(--bg);
       color: var(--ink);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: ui-rounded, "Avenir Next Rounded", "Nunito", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
-    .shell {
-      width: min(760px, 100%);
-      margin: 0 auto;
-      background: var(--surface);
-      border: 1px solid var(--line);
+    button { font: inherit; }
+    .app { width: min(820px, 100%); margin: 0 auto; }
+    .empty { background: var(--surface); border: 2px solid var(--line); border-radius: 24px; padding: 54px 24px; text-align: center; box-shadow: var(--shadow); color: var(--muted); }
+    .empty[hidden], .lesson[hidden], .quiz[hidden] { display: none; }
+
+    .header-card {
+      background: rgba(255,255,255,.96);
+      border: 2px solid var(--line);
       border-radius: 24px;
-      overflow: hidden;
-      box-shadow: 0 14px 40px rgba(31, 27, 46, 0.09);
+      padding: 18px 20px;
+      box-shadow: 0 8px 28px rgba(255,107,53,.08);
+      margin-bottom: 14px;
     }
+    .top-row { display: flex; align-items: center; gap: 10px; }
+    .owl { font-size: 1.6rem; line-height: 1; }
+    .brand { color: var(--orange); font-weight: 850; letter-spacing: -.02em; }
+    .depth { margin-left: auto; padding: 6px 11px; border-radius: 999px; background: #f0eafd; color: var(--purple); font-size: .76rem; font-weight: 800; text-transform: capitalize; }
+    .topic { margin: 12px 0 3px; color: var(--purple); font-size: .88rem; font-weight: 700; }
+    h1 { margin: 0; font-size: clamp(1.45rem, 4vw, 2rem); line-height: 1.12; letter-spacing: -.03em; }
+    .summary { margin-top: 8px; color: var(--muted); font-size: .94rem; line-height: 1.48; }
 
-    header {
-      padding: 18px 20px 14px;
-      border-bottom: 1px solid var(--line);
-      display: flex;
-      justify-content: space-between;
-      gap: 14px;
-      align-items: flex-start;
-    }
+    .progress-shell { height: 9px; background: #f1e9e1; border-radius: 999px; overflow: hidden; margin: 0 5px 14px; }
+    .progress-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--orange), var(--yellow)); border-radius: inherit; transition: width .22s ease; }
 
-    .brand { font-weight: 800; font-size: 1.08rem; }
-    .brand span { color: var(--warm); }
-    .lesson-title { margin-top: 4px; font-size: 1.25rem; font-weight: 720; }
-    .summary { margin-top: 5px; color: var(--muted); font-size: .92rem; line-height: 1.45; }
-    .badge {
-      flex: 0 0 auto;
-      border-radius: 999px;
-      background: var(--accent-soft);
-      color: var(--accent);
-      padding: 6px 10px;
-      font-size: .78rem;
-      font-weight: 700;
-      text-transform: capitalize;
-    }
+    .deck { background: var(--surface); border: 2px solid var(--line); border-radius: 24px; overflow: hidden; box-shadow: var(--shadow); }
+    .visual { position: relative; aspect-ratio: 16 / 9; display: grid; place-items: center; overflow: hidden; background: linear-gradient(145deg, #f5eefe, #fff0dc); }
+    .visual::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 -40px 70px rgba(45,49,66,.05); }
+    .visual img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .image-placeholder { max-width: 390px; padding: 22px; text-align: center; color: var(--purple); line-height: 1.5; font-weight: 650; }
 
-    .empty {
-      padding: 42px 22px;
-      text-align: center;
-      color: var(--muted);
-    }
+    .slide-content { padding: 20px 22px 22px; }
+    .slide-meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; color: var(--purple); font-size: .8rem; font-weight: 800; }
+    .dots { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; border: 0; padding: 0; background: #ddd3e7; cursor: pointer; }
+    .dot.on { background: var(--orange); transform: scale(1.18); }
+    h2 { margin: 8px 0 10px; color: var(--orange); font-size: clamp(1.32rem, 3.5vw, 1.65rem); line-height: 1.2; }
+    .body-copy { margin: 0; color: var(--ink); line-height: 1.67; font-size: 1rem; white-space: pre-line; }
+    .fun-fact { margin-top: 16px; background: var(--cream); border-left: 5px solid var(--orange); border-radius: 14px; padding: 12px 14px; line-height: 1.5; font-size: .92rem; }
+    .fun-fact strong { color: var(--orange); }
 
-    .lesson[hidden], .quiz[hidden], .empty[hidden] { display: none; }
+    .controls { display: flex; justify-content: space-between; gap: 10px; padding: 14px 4px 4px; }
+    button { border: 0; border-radius: 999px; padding: 11px 18px; font-weight: 800; cursor: pointer; transition: transform .12s ease, opacity .12s ease; }
+    button:active:not(:disabled) { transform: translateY(1px); }
+    button:disabled { opacity: .42; cursor: default; }
+    .secondary { background: white; color: var(--purple); border: 2px solid rgba(106,76,147,.18); }
+    .primary { color: white; background: linear-gradient(135deg, var(--orange), var(--yellow)); box-shadow: 0 5px 16px rgba(255,107,53,.20); }
 
-    .visual {
-      aspect-ratio: 16 / 9;
-      background: linear-gradient(145deg, #f3f1ff, #fff7e8);
-      display: grid;
-      place-items: center;
-      overflow: hidden;
-      border-bottom: 1px solid var(--line);
-    }
+    .lesson-footer { text-align: center; color: var(--purple); font-size: .78rem; margin-top: 14px; }
 
-    .visual img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      display: block;
-    }
+    .quiz { background: var(--surface); border: 2px solid var(--line); border-radius: 24px; padding: 22px; box-shadow: var(--shadow); }
+    .quiz-brand { display: flex; align-items: center; gap: 8px; color: var(--orange); font-weight: 850; margin-bottom: 16px; }
+    .quiz-meta { color: var(--purple); font-size: .82rem; font-weight: 800; }
+    .quiz h2 { color: var(--ink); margin-top: 8px; }
+    .choices { display: grid; gap: 10px; margin-top: 16px; }
+    .choice { width: 100%; text-align: left; border: 2px solid rgba(255,107,53,.13); background: var(--cream); color: var(--ink); border-radius: 15px; padding: 13px 15px; font-weight: 700; }
+    .choice:hover:not(:disabled) { border-color: var(--orange); }
+    .choice.correct { background: #ebf8ef; border-color: var(--good); color: #1f6538; }
+    .choice.wrong { background: #fff0ee; border-color: var(--bad); color: #8f312c; }
+    .feedback { min-height: 46px; margin-top: 13px; color: var(--muted); line-height: 1.45; }
+    .quiz-actions { display: flex; justify-content: flex-end; margin-top: 6px; }
+    .score { text-align: center; padding: 30px 10px 18px; }
+    .score .trophy { font-size: 2.6rem; }
+    .score strong { display: block; color: var(--orange); font-size: 2.2rem; margin: 8px 0; }
 
-    .image-placeholder {
-      max-width: 360px;
-      padding: 18px;
-      text-align: center;
-      color: var(--muted);
-      line-height: 1.45;
-    }
-
-    .slide-body { padding: 22px; }
-    .progress-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      color: var(--muted);
-      font-size: .82rem;
-      margin-bottom: 8px;
-    }
-
-    .progress {
-      height: 6px;
-      flex: 1;
-      border-radius: 999px;
-      background: #eceaf1;
-      overflow: hidden;
-    }
-    .progress > div { height: 100%; background: var(--accent); transition: width .2s ease; }
-
-    h2 { margin: 10px 0 10px; font-size: 1.45rem; line-height: 1.2; }
-    .body-copy { margin: 0; line-height: 1.65; font-size: 1rem; white-space: pre-line; }
-    .fun-fact {
-      margin-top: 16px;
-      padding: 12px 14px;
-      background: #fff7e8;
-      border: 1px solid rgba(239, 159, 39, .22);
-      border-radius: 12px;
-      font-size: .92rem;
-      line-height: 1.5;
-    }
-    .fun-fact strong { color: #9b6412; }
-
-    .controls {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 0 22px 22px;
-    }
-
-    button {
-      border: 0;
-      border-radius: 12px;
-      padding: 10px 15px;
-      font: inherit;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    button:disabled { opacity: .45; cursor: default; }
-    .secondary { background: #f2f0f5; color: var(--ink); }
-    .primary { background: var(--accent); color: white; }
-
-    .quiz { padding: 22px; }
-    .quiz h2 { margin-top: 0; }
-    .quiz-meta { color: var(--muted); font-size: .85rem; margin-bottom: 8px; }
-    .choices { display: grid; gap: 9px; margin-top: 16px; }
-    .choice {
-      width: 100%;
-      text-align: left;
-      background: #f7f6fa;
-      color: var(--ink);
-      border: 1px solid var(--line);
-      font-weight: 600;
-    }
-    .choice.correct { border-color: var(--good); background: #edf8f0; color: #1f6638; }
-    .choice.wrong { border-color: var(--bad); background: #fff0ee; color: #91322d; }
-    .feedback { min-height: 44px; margin-top: 13px; color: var(--muted); line-height: 1.45; }
-    .quiz-actions { margin-top: 14px; display: flex; justify-content: flex-end; }
-    .score { text-align: center; padding: 34px 12px; }
-    .score strong { display: block; font-size: 2rem; margin: 8px 0; color: var(--accent); }
-
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #17151d;
-        --surface: #211e29;
-        --ink: #f5f2f8;
-        --muted: #b8b2c2;
-        --line: rgba(255,255,255,.10);
-        --accent-soft: #312d58;
-      }
-      .progress { background: #393541; }
-      .secondary, .choice { background: #302c38; color: var(--ink); }
-      .fun-fact { background: #392f20; }
-      .visual { background: linear-gradient(145deg, #292544, #382d21); }
+    @media (max-width: 560px) {
+      body { padding: 9px; }
+      .header-card, .slide-content, .quiz { padding-left: 16px; padding-right: 16px; }
+      .controls { padding-left: 0; padding-right: 0; }
+      button { padding: 10px 14px; }
     }
   </style>
 </head>
 <body>
-  <main class="shell">
+  <main class="app">
     <div id="empty" class="empty">
-      <div class="brand">AskLil<span>Owl</span></div>
+      <div style="font-size:2rem">🦉</div>
+      <div class="brand" style="font-size:1.25rem;margin-top:8px">Ask Lil Owl</div>
       <p>Your visual lesson will appear here.</p>
     </div>
 
     <section id="lesson" class="lesson" hidden>
-      <header>
-        <div>
-          <div class="brand">AskLil<span>Owl</span></div>
-          <div id="lesson-title" class="lesson-title"></div>
-          <div id="summary" class="summary"></div>
+      <div class="header-card">
+        <div class="top-row">
+          <span class="owl">🦉</span>
+          <span class="brand">Ask Lil Owl</span>
+          <span id="depth" class="depth"></span>
         </div>
-        <div id="depth" class="badge"></div>
-      </header>
+        <div id="topic" class="topic"></div>
+        <h1 id="lesson-title"></h1>
+        <div id="summary" class="summary"></div>
+      </div>
 
-      <div id="visual" class="visual"></div>
+      <div class="progress-shell"><div id="progress-fill" class="progress-fill"></div></div>
 
-      <div class="slide-body">
-        <div class="progress-row">
-          <span id="counter"></span>
-          <div class="progress"><div id="progress-fill"></div></div>
+      <div class="deck">
+        <div id="visual" class="visual"></div>
+        <div class="slide-content">
+          <div class="slide-meta">
+            <span id="counter"></span>
+            <div id="dots" class="dots"></div>
+          </div>
+          <h2 id="slide-title"></h2>
+          <p id="slide-body" class="body-copy"></p>
+          <div id="fun-fact" class="fun-fact" hidden><strong>Fun fact:</strong> <span></span></div>
         </div>
-        <h2 id="slide-title"></h2>
-        <p id="slide-body" class="body-copy"></p>
-        <div id="fun-fact" class="fun-fact" hidden><strong>Did you know?</strong> <span></span></div>
       </div>
 
       <div class="controls">
-        <button id="prev" class="secondary" type="button">← Previous</button>
+        <button id="prev" class="secondary" type="button">← Back</button>
         <button id="next" class="primary" type="button">Next →</button>
       </div>
+      <div class="lesson-footer">Powered by curiosity ✨ Made for curious minds 🦉</div>
     </section>
 
     <section id="quiz" class="quiz" hidden>
+      <div class="quiz-brand"><span>🦉</span><span>Ask Lil Owl · Quick Quiz</span></div>
       <div id="quiz-content">
         <div id="quiz-meta" class="quiz-meta"></div>
         <h2 id="quiz-question"></h2>
         <div id="choices" class="choices"></div>
         <div id="feedback" class="feedback"></div>
-        <div class="quiz-actions">
-          <button id="quiz-next" class="primary" type="button" disabled>Next question</button>
-        </div>
+        <div class="quiz-actions"><button id="quiz-next" class="primary" type="button" disabled>Next question</button></div>
       </div>
       <div id="score" class="score" hidden></div>
     </section>
   </main>
 
   <script type="module">
-    const emptyEl = document.querySelector("#empty");
-    const lessonEl = document.querySelector("#lesson");
-    const quizEl = document.querySelector("#quiz");
-    const titleEl = document.querySelector("#lesson-title");
-    const summaryEl = document.querySelector("#summary");
-    const depthEl = document.querySelector("#depth");
-    const visualEl = document.querySelector("#visual");
-    const counterEl = document.querySelector("#counter");
-    const progressFillEl = document.querySelector("#progress-fill");
-    const slideTitleEl = document.querySelector("#slide-title");
-    const slideBodyEl = document.querySelector("#slide-body");
-    const funFactEl = document.querySelector("#fun-fact");
-    const prevEl = document.querySelector("#prev");
-    const nextEl = document.querySelector("#next");
-
-    const quizMetaEl = document.querySelector("#quiz-meta");
-    const quizQuestionEl = document.querySelector("#quiz-question");
-    const choicesEl = document.querySelector("#choices");
-    const feedbackEl = document.querySelector("#feedback");
-    const quizNextEl = document.querySelector("#quiz-next");
-    const quizContentEl = document.querySelector("#quiz-content");
-    const scoreEl = document.querySelector("#score");
+    const $ = (selector) => document.querySelector(selector);
+    const emptyEl = $("#empty");
+    const lessonEl = $("#lesson");
+    const quizEl = $("#quiz");
+    const topicEl = $("#topic");
+    const titleEl = $("#lesson-title");
+    const summaryEl = $("#summary");
+    const depthEl = $("#depth");
+    const visualEl = $("#visual");
+    const counterEl = $("#counter");
+    const dotsEl = $("#dots");
+    const progressFillEl = $("#progress-fill");
+    const slideTitleEl = $("#slide-title");
+    const slideBodyEl = $("#slide-body");
+    const funFactEl = $("#fun-fact");
+    const prevEl = $("#prev");
+    const nextEl = $("#next");
+    const quizMetaEl = $("#quiz-meta");
+    const quizQuestionEl = $("#quiz-question");
+    const choicesEl = $("#choices");
+    const feedbackEl = $("#feedback");
+    const quizNextEl = $("#quiz-next");
+    const quizContentEl = $("#quiz-content");
+    const scoreEl = $("#score");
 
     let lesson = null;
     let slideIndex = 0;
@@ -270,7 +197,6 @@
     const resolveImageUrl = async (image) => {
       if (image?.url) return image.url;
       if (!image?.fileId) return null;
-
       try {
         if (window.openai?.getFileDownloadUrl) {
           const result = await window.openai.getFileDownloadUrl({ fileId: image.fileId });
@@ -279,65 +205,70 @@
       } catch (error) {
         console.error("AskLilOwl could not resolve ChatGPT image file:", error);
       }
-
       return null;
+    };
+
+    const showImageFallback = (slide, message) => {
+      visualEl.replaceChildren();
+      const fallback = document.createElement("div");
+      fallback.className = "image-placeholder";
+      fallback.textContent = slide.imageAlt || message;
+      visualEl.appendChild(fallback);
     };
 
     const renderVisual = async (slide) => {
       const token = ++visualRenderToken;
       visualEl.replaceChildren();
       const image = getSlideImage(slide);
-
       if (!image) {
-        const placeholder = document.createElement("div");
-        placeholder.className = "image-placeholder";
-        placeholder.textContent = slide.imageAlt || "No image was attached to this slide yet.";
-        visualEl.appendChild(placeholder);
+        showImageFallback(slide, "Illustration will appear here.");
         return;
       }
-
       const loading = document.createElement("div");
       loading.className = "image-placeholder";
-      loading.textContent = "Loading lesson illustration…";
+      loading.textContent = "Loading illustration…";
       visualEl.appendChild(loading);
-
       const imageUrl = await resolveImageUrl(image);
       if (token !== visualRenderToken) return;
-
       if (!imageUrl) {
-        visualEl.replaceChildren();
-        const fallback = document.createElement("div");
-        fallback.className = "image-placeholder";
-        fallback.textContent = slide.imageAlt || "The image file was received, but its preview could not be resolved.";
-        visualEl.appendChild(fallback);
+        showImageFallback(slide, "The illustration could not be opened.");
         return;
       }
-
       const img = document.createElement("img");
       img.src = imageUrl;
       img.alt = slide.imageAlt || slide.title || "Lesson illustration";
       img.referrerPolicy = "no-referrer";
       img.addEventListener("error", () => {
-        if (token !== visualRenderToken) return;
-        visualEl.replaceChildren();
-        const fallback = document.createElement("div");
-        fallback.className = "image-placeholder";
-        fallback.textContent = slide.imageAlt || "The image file was received, but this preview URL could not be rendered in the widget.";
-        visualEl.appendChild(fallback);
+        if (token === visualRenderToken) showImageFallback(slide, "The illustration could not be displayed.");
       });
       visualEl.replaceChildren(img);
     };
 
+    const renderDots = () => {
+      dotsEl.replaceChildren();
+      lesson.slides.forEach((_, index) => {
+        const dot = document.createElement("button");
+        dot.type = "button";
+        dot.className = `dot${index === slideIndex ? " on" : ""}`;
+        dot.setAttribute("aria-label", `Go to slide ${index + 1}`);
+        dot.addEventListener("click", () => {
+          slideIndex = index;
+          renderSlide();
+        });
+        dotsEl.appendChild(dot);
+      });
+    };
+
     const renderSlide = () => {
       const slide = lesson.slides[slideIndex];
+      topicEl.textContent = lesson.topic || "Curious question";
       titleEl.textContent = lesson.title;
-      summaryEl.textContent = lesson.summary || `${lesson.slideCount} slide lesson for ${lesson.audience}`;
+      summaryEl.textContent = lesson.summary || `${lesson.slides.length}-slide lesson for ${lesson.audience}`;
       depthEl.textContent = lesson.depth;
-      counterEl.textContent = `${slideIndex + 1} / ${lesson.slides.length}`;
+      counterEl.textContent = `Slide ${slideIndex + 1} of ${lesson.slides.length}`;
       progressFillEl.style.width = `${((slideIndex + 1) / lesson.slides.length) * 100}%`;
       slideTitleEl.textContent = slide.title;
       slideBodyEl.textContent = slide.body;
-
       if (slide.funFact) {
         funFactEl.hidden = false;
         funFactEl.querySelector("span").textContent = slide.funFact;
@@ -345,10 +276,10 @@
         funFactEl.hidden = true;
         funFactEl.querySelector("span").textContent = "";
       }
-
+      renderDots();
       renderVisual(slide);
       prevEl.disabled = slideIndex === 0;
-      nextEl.textContent = slideIndex === lesson.slides.length - 1 ? "Take quiz →" : "Next →";
+      nextEl.textContent = slideIndex === lesson.slides.length - 1 ? "Try the quiz →" : "Next →";
     };
 
     const startQuiz = () => {
@@ -366,11 +297,10 @@
       answered = false;
       feedbackEl.textContent = "";
       quizNextEl.disabled = true;
-      quizNextEl.textContent = quizIndex === lesson.quiz.length - 1 ? "See score" : "Next question";
+      quizNextEl.textContent = quizIndex === lesson.quiz.length - 1 ? "See my score" : "Next question";
       quizMetaEl.textContent = `Question ${quizIndex + 1} of ${lesson.quiz.length}`;
       quizQuestionEl.textContent = item.question;
       choicesEl.replaceChildren();
-
       item.choices.forEach((choiceText, choiceIndex) => {
         const button = document.createElement("button");
         button.type = "button";
@@ -388,14 +318,12 @@
       const buttons = [...choicesEl.querySelectorAll("button")];
       const correct = selectedIndex === item.answerIndex;
       if (correct) score += 1;
-
       buttons.forEach((button, index) => {
         button.disabled = true;
         if (index === item.answerIndex) button.classList.add("correct");
         if (index === selectedIndex && !correct) button.classList.add("wrong");
       });
-
-      feedbackEl.textContent = `${correct ? "Correct!" : "Not quite."}${item.explanation ? ` ${item.explanation}` : ""}`;
+      feedbackEl.textContent = `${correct ? "Correct! 🎉" : "Not quite."}${item.explanation ? ` ${item.explanation}` : ""}`;
       quizNextEl.disabled = false;
     };
 
@@ -403,24 +331,27 @@
       quizContentEl.hidden = true;
       scoreEl.hidden = false;
       scoreEl.replaceChildren();
+      const trophy = document.createElement("div");
+      trophy.className = "trophy";
+      trophy.textContent = score === lesson.quiz.length ? "🏆" : "🌟";
       const heading = document.createElement("div");
-      heading.textContent = "Lesson complete";
+      heading.textContent = "Lesson complete!";
       const result = document.createElement("strong");
       result.textContent = `${score} / ${lesson.quiz.length}`;
       const note = document.createElement("div");
-      note.textContent = score === lesson.quiz.length ? "Perfect score!" : "Nice work — you can review the slides and try again anytime.";
+      note.textContent = score === lesson.quiz.length ? "Amazing — perfect score!" : "Nice work. Review the lesson and try again whenever you want.";
       const review = document.createElement("button");
       review.type = "button";
       review.className = "secondary";
       review.style.marginTop = "18px";
-      review.textContent = "Review lesson";
+      review.textContent = "← Review lesson";
       review.addEventListener("click", () => {
         slideIndex = 0;
         quizEl.hidden = true;
         lessonEl.hidden = false;
         renderSlide();
       });
-      scoreEl.append(heading, result, note, review);
+      scoreEl.append(trophy, heading, result, note, review);
     };
 
     prevEl.addEventListener("click", () => {
@@ -429,7 +360,6 @@
         renderSlide();
       }
     });
-
     nextEl.addEventListener("click", () => {
       if (slideIndex < lesson.slides.length - 1) {
         slideIndex += 1;
@@ -438,7 +368,6 @@
         startQuiz();
       }
     });
-
     quizNextEl.addEventListener("click", () => {
       if (!answered) return;
       if (quizIndex < lesson.quiz.length - 1) {
@@ -464,23 +393,17 @@
 
     let rpcId = 0;
     const pendingRequests = new Map();
-
-    const rpcNotify = (method, params) => {
-      window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
-    };
-
-    const rpcRequest = (method, params) =>
-      new Promise((resolve, reject) => {
-        const id = ++rpcId;
-        pendingRequests.set(id, { resolve, reject });
-        window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
-      });
+    const rpcNotify = (method, params) => window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
+    const rpcRequest = (method, params) => new Promise((resolve, reject) => {
+      const id = ++rpcId;
+      pendingRequests.set(id, { resolve, reject });
+      window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+    });
 
     window.addEventListener("message", (event) => {
       if (event.source !== window.parent) return;
       const message = event.data;
       if (!message || message.jsonrpc !== "2.0") return;
-
       if (typeof message.id === "number") {
         const pending = pendingRequests.get(message.id);
         if (!pending) return;
@@ -489,16 +412,13 @@
         else pending.resolve(message.result);
         return;
       }
-
-      if (message.method === "ui/notifications/tool-result") {
-        updateFromResponse(message.params);
-      }
+      if (message.method === "ui/notifications/tool-result") updateFromResponse(message.params);
     }, { passive: true });
 
     const initializeBridge = async () => {
       try {
         await rpcRequest("ui/initialize", {
-          appInfo: { name: "asklilowl-lesson-widget", version: "0.1.1" },
+          appInfo: { name: "asklilowl-lesson-widget", version: "0.2.0" },
           appCapabilities: {},
           protocolVersion: "2026-01-26",
         });
