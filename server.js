@@ -28,17 +28,6 @@ const PUBLIC_ORIGIN = (
   process.env.PUBLIC_ORIGIN ?? "https://asklilowl-chatgpt.onrender.com"
 ).replace(/\/+$/, "");
 
-const imageFileSchema = z
-  .object({
-    file_id: z.string().optional(),
-    download_url: z.string().optional(),
-    mime_type: z.string().optional(),
-    file_name: z.string().optional(),
-    name: z.string().optional(),
-    size: z.number().optional(),
-  })
-  .passthrough();
-
 const slideSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -55,21 +44,40 @@ const quizQuestionSchema = z.object({
   explanation: z.string().optional(),
 });
 
-function normalizeImages(images = []) {
-  return images.map((image, index) => ({
-    index,
-    fileId: image?.file_id ?? null,
-    url: image?.download_url ?? null,
-    mimeType: image?.mime_type ?? null,
-    fileName: image?.file_name ?? image?.name ?? `lesson-image-${index + 1}`,
-    size: image?.size ?? null,
-  }));
+function normalizeImages(input) {
+  const images = Array.isArray(input) ? input : input ? [input] : [];
+
+  return images.map((image, index) => {
+    if (typeof image === "string") {
+      return {
+        index,
+        fileId: image.startsWith("file_") || image.startsWith("file-") ? image : null,
+        url: /^https?:\/\//i.test(image) || image.startsWith("data:") ? image : null,
+        mimeType: null,
+        fileName: `lesson-image-${index + 1}`,
+        size: null,
+      };
+    }
+
+    return {
+      index,
+      fileId: image?.file_id ?? image?.fileId ?? null,
+      url: image?.download_url ?? image?.downloadUrl ?? image?.url ?? null,
+      mimeType: image?.mime_type ?? image?.mimeType ?? null,
+      fileName:
+        image?.file_name ??
+        image?.fileName ??
+        image?.name ??
+        `lesson-image-${index + 1}`,
+      size: image?.size ?? null,
+    };
+  });
 }
 
 function createAskLilOwlServer() {
   const server = new McpServer({
     name: "asklilowl-plugin-server",
-    version: "0.1.1",
+    version: "0.1.2",
   });
 
   registerAppResource(
@@ -109,7 +117,7 @@ function createAskLilOwlServer() {
         "Choose the slide count dynamically from the topic and requested depth; do not force four slides. " +
         "Typical guidance: 4-5 for simple topics, 6-8 for moderate topics, 9-12 for complex topics, and up to 20 for a deep dive. " +
         "Use the minimum number of slides needed for a clear explanation. " +
-        "Create an age/skill-appropriate quiz. If native image generation is available, generate useful lesson illustrations first and pass those image files in the images parameter. " +
+        "Create an age/skill-appropriate quiz. If native ChatGPT image generation is available, generate useful lesson illustrations first and pass those ChatGPT-managed image files in the images parameter. " +
         "Each slide can point to one image with imageIndex. Do not call an external image provider from this tool.",
       inputSchema: {
         topic: z.string().min(1).describe("The topic or question being explained."),
@@ -137,9 +145,11 @@ function createAskLilOwlServer() {
           .max(10)
           .describe("Short multiple-choice comprehension quiz."),
         images: z
-          .array(imageFileSchema)
+          .any()
           .optional()
-          .describe("ChatGPT-managed image files for the lesson, in slide order when practical."),
+          .describe(
+            "ChatGPT-managed lesson image file input. ChatGPT may supply one file object or an array of file objects."
+          ),
       },
       annotations: {
         readOnlyHint: true,
@@ -152,7 +162,7 @@ function createAskLilOwlServer() {
       },
     },
     async (args) => {
-      const images = normalizeImages(args.images ?? []);
+      const images = normalizeImages(args.images);
       const slides = args.slides.map((slide, index) => ({
         ...slide,
         number: index + 1,
