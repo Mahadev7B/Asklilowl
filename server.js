@@ -77,7 +77,7 @@ function normalizeImages(input) {
 function createAskLilOwlServer() {
   const server = new McpServer({
     name: "asklilowl-plugin-server",
-    version: "0.1.2",
+    version: "0.1.3",
   });
 
   registerAppResource(
@@ -98,7 +98,7 @@ function createAskLilOwlServer() {
             ui: {
               csp: {
                 connectDomains: [],
-                resourceDomains: [PUBLIC_ORIGIN],
+                resourceDomains: [PUBLIC_ORIGIN, "https://*.oaiusercontent.com"],
               },
             },
           },
