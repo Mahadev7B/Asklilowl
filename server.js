@@ -17,9 +17,16 @@ const lessonHtml = readFileSync(
   path.join(__dirname, "public", "lesson-widget.html"),
   "utf8"
 );
+const testBirdSvg = readFileSync(
+  path.join(__dirname, "public", "test-bird.svg"),
+  "utf8"
+);
 
 const LESSON_URI = "ui://asklilowl/lesson.html";
 const MCP_PATH = "/mcp";
+const PUBLIC_ORIGIN = (
+  process.env.PUBLIC_ORIGIN ?? "https://asklilowl-chatgpt.onrender.com"
+).replace(/\/+$/, "");
 
 const imageFileSchema = z
   .object({
@@ -62,7 +69,7 @@ function normalizeImages(images = []) {
 function createAskLilOwlServer() {
   const server = new McpServer({
     name: "asklilowl-plugin-server",
-    version: "0.1.0",
+    version: "0.1.1",
   });
 
   registerAppResource(
@@ -79,6 +86,14 @@ function createAskLilOwlServer() {
           uri: LESSON_URI,
           mimeType: RESOURCE_MIME_TYPE,
           text: lessonHtml,
+          _meta: {
+            ui: {
+              csp: {
+                connectDomains: [],
+                resourceDomains: [PUBLIC_ORIGIN],
+              },
+            },
+          },
         },
       ],
     })
@@ -217,6 +232,16 @@ const httpServer = createServer(async (req, res) => {
     res
       .writeHead(200, { "content-type": "text/plain; charset=utf-8" })
       .end("AskLilOwl MCP server is running. Use /mcp from ChatGPT or MCP Inspector.");
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/test-bird.svg") {
+    res.writeHead(200, {
+      "content-type": "image/svg+xml; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+    });
+    res.end(testBirdSvg);
     return;
   }
 
