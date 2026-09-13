@@ -77,7 +77,7 @@ function normalizeImages(input) {
 function createAskLilOwlServer() {
   const server = new McpServer({
     name: "asklilowl-plugin-server",
-    version: "0.1.3",
+    version: "0.1.4",
   });
 
   registerAppResource(
@@ -117,12 +117,16 @@ function createAskLilOwlServer() {
     {
       title: "Create AskLilOwl lesson",
       description:
-        "Render a complete interactive AskLilOwl lesson that YOU have already written. " +
+        "Render a complete interactive AskLilOwl lesson that YOU have already researched, reasoned through, and written using the strongest capabilities available in the current ChatGPT conversation. " +
+        "Do not assume or request a specific host model; use the model and native capabilities ChatGPT currently provides to the user. " +
+        "For current, changing, scientific, historical, or otherwise factual topics, verify important facts with ChatGPT's available research/search tools before teaching them when those tools are available; if verification is unavailable and a fact is uncertain, avoid presenting it as certain. " +
+        "Adapt vocabulary, examples, pacing, and quiz difficulty to the requested learner level. " +
         "Choose the slide count dynamically from the topic and requested depth; do not force four slides. " +
         "Typical guidance: 4-5 for simple topics, 6-8 for moderate topics, 9-12 for complex topics, and up to 20 for a deep dive. " +
-        "Use the minimum number of slides needed for a clear explanation. " +
-        "Create an age/skill-appropriate quiz. If native ChatGPT image generation is available, generate useful lesson illustrations first and pass those ChatGPT-managed image files in the images parameter. " +
-        "Each slide can point to one image with imageIndex. Do not call an external image provider from this tool.",
+        "Use the minimum number of slides needed for a clear explanation and create an age/skill-appropriate quiz. " +
+        "When native ChatGPT image generation is available, generate useful educational illustrations before calling this tool and pass those ChatGPT-managed image files in the images parameter. " +
+        "Prefer images that directly teach the slide concept rather than decorative pictures. Each slide can point to one image with imageIndex. " +
+        "Do not call an external language model, image provider, or TTS provider from this tool. The AskLilOwl backend should only render the lesson content and files ChatGPT supplies.",
       inputSchema: {
         topic: z.string().min(1).describe("The topic or question being explained."),
         title: z.string().min(1).describe("Short lesson title."),
@@ -142,17 +146,17 @@ function createAskLilOwlServer() {
           .array(slideSchema)
           .min(3)
           .max(20)
-          .describe("Dynamically sized lesson slides."),
+          .describe("Dynamically sized lesson slides, written for the requested learner level."),
         quiz: z
           .array(quizQuestionSchema)
           .min(1)
           .max(10)
-          .describe("Short multiple-choice comprehension quiz."),
+          .describe("Short multiple-choice comprehension quiz matched to the lesson and learner level."),
         images: z
           .any()
           .optional()
           .describe(
-            "ChatGPT-managed lesson image file input. ChatGPT may supply one file object or an array of file objects."
+            "ChatGPT-managed educational image file input generated or supplied in the current ChatGPT conversation. ChatGPT may supply one file object or an array of file objects."
           ),
       },
       annotations: {
