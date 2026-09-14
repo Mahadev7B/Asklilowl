@@ -103,7 +103,7 @@ test("production and demo MCP servers expose only their intended tools", async (
   }
 });
 
-test("the lesson widget declares its stable public origin for ChatGPT review", async (t) => {
+test("the lesson widget declares its stable public origin for standard and ChatGPT clients", async (t) => {
   const publicOrigin = "https://asklilowl-chatgpt.onrender.com";
   const { server, origin } = await startServer({
     demoMode: false,
@@ -120,6 +120,7 @@ test("the lesson widget declares its stable public origin for ChatGPT review", a
   const result = await client.readResource({ uri: "ui://asklilowl/lesson.html" });
 
   assert.equal(result.contents[0]._meta?.ui?.domain, publicOrigin);
+  assert.equal(result.contents[0]._meta?.["openai/widgetDomain"], publicOrigin);
 });
 
 test("the Inspector bird asset is isolated from production", async (t) => {

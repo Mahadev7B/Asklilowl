@@ -71,6 +71,7 @@ export function createAskLilOwlServer({
           mimeType: RESOURCE_MIME_TYPE,
           text: lessonHtml,
           _meta: {
+            "openai/widgetDomain": publicOrigin,
             ui: {
               domain: publicOrigin,
               csp: {
