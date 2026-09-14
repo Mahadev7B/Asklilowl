@@ -20,6 +20,8 @@
 
 **MCP endpoint:** https://asklilowl-chatgpt.onrender.com/mcp
 
+**Staging status:** Deployed from `codex/launch-readiness` and verified at the HTTP/MCP boundary on 2026-09-14. The ChatGPT Developer Mode connection discovered only the production `create_lesson` action and its lesson template. Conversation-level cases remain pending and are tracked in `live-test-results.md`.
+
 ## Starter prompts
 
 1. Teach my child how birds fly with a short quiz.

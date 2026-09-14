@@ -103,6 +103,25 @@ test("production and demo MCP servers expose only their intended tools", async (
   }
 });
 
+test("the lesson widget declares its stable public origin for ChatGPT review", async (t) => {
+  const publicOrigin = "https://asklilowl-chatgpt.onrender.com";
+  const { server, origin } = await startServer({
+    demoMode: false,
+    publicOrigin,
+  });
+  const client = new Client({ name: "asklilowl-resource-test", version: "1.0.0" });
+  const transport = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`));
+  await client.connect(transport);
+  t.after(async () => {
+    await client.close();
+    await stopServer(server);
+  });
+
+  const result = await client.readResource({ uri: "ui://asklilowl/lesson.html" });
+
+  assert.equal(result.contents[0]._meta?.ui?.domain, publicOrigin);
+});
+
 test("the Inspector bird asset is isolated from production", async (t) => {
   const production = await startServer({ demoMode: false });
   const demo = await startServer({ demoMode: true });

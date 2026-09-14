@@ -120,9 +120,9 @@
 
 **Files:** all launch-readiness changes.
 
-- [ ] Commit on `codex/launch-readiness` with a focused message.
-- [ ] Push the branch to `Mahadev7B/Asklilowl`.
-- [ ] Record the remote branch and commit SHA for review.
+- [x] Commit on `codex/launch-readiness` with a focused message.
+- [x] Push the branch to `Mahadev7B/Asklilowl`.
+- [x] Record the remote branch and commit SHA for review: `f99eb491ccee462187fc51327955210237230270`.
 
 ### Task 8: Deploy and verify staging
 
@@ -132,10 +132,10 @@
 - Modify if required: `mcp.json`
 - Modify if required: `plugin.json`
 
-- [ ] Confirm the intended Render service/domain and ensure demo mode is disabled.
-- [ ] Deploy the feature branch to a non-paid staging service or existing authorized staging service.
-- [ ] Verify HTTPS health, policy/support pages, MCP initialization, tool listing, valid invocation, invalid input, output schema, CSP, and demo isolation.
-- [ ] Record the verified public MCP URL and any hosting limitation.
+- [x] Confirm the intended Render service/domain and ensure demo mode is disabled.
+- [x] Deploy the feature branch to the existing authorized non-paid Render service.
+- [x] Verify HTTPS health, policy/support pages, MCP initialization, tool listing, valid invocation, invalid input, output schema, CSP, and demo isolation.
+- [x] Record the verified public MCP URL and the free-instance cold-start limitation.
 
 ### Task 9: Test in ChatGPT Developer Mode and prepare submission handoff
 
@@ -144,7 +144,7 @@
 - Create: `submission/live-test-results.md`
 - Modify: `submission/README.md`
 
-- [ ] Connect the deployed MCP endpoint in the browser when the signed-in account already has Developer Mode enabled.
+- [x] Connect the deployed MCP endpoint in the browser when the signed-in account already has Developer Mode enabled.
 - [ ] Run representative direct, indirect, follow-up, current-topic, edge, and unsupported requests.
 - [ ] Verify the rendered UI, model-readable response, citations/sources, image handling, state restoration, narrow layout, and browser console.
 - [ ] Record observed results and unresolved issues without fabricating passes.

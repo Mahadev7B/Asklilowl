@@ -72,6 +72,7 @@ export function createAskLilOwlServer({
           text: lessonHtml,
           _meta: {
             ui: {
+              domain: publicOrigin,
               csp: {
                 connectDomains: [],
                 resourceDomains: [
