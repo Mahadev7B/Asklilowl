@@ -1,0 +1,159 @@
+{
+  "version": "1.0.0",
+  "cases": [
+    {
+      "id": "young-bird-flight",
+      "type": "positive",
+      "prompt": "Use AskLilOwl to teach my 7-year-old how birds fly. Keep it short and include a quiz.",
+      "tags": ["young-learner", "science", "direct"],
+      "expected": {
+        "toolDecision": "call",
+        "toolName": "create_lesson",
+        "audience": "young learner",
+        "depth": "quick",
+        "requiresFreshResearch": false,
+        "expectsImages": false
+      }
+    },
+    {
+      "id": "middle-school-photosynthesis",
+      "type": "positive",
+      "prompt": "Create an AskLilOwl lesson explaining photosynthesis for a seventh-grade student, with a comprehension quiz.",
+      "tags": ["middle-school", "science", "direct"],
+      "expected": {
+        "toolDecision": "call",
+        "toolName": "create_lesson",
+        "audience": "middle-school learner",
+        "depth": "standard",
+        "requiresFreshResearch": false,
+        "expectsImages": false
+      }
+    },
+    {
+      "id": "adult-database-index",
+      "type": "positive",
+      "prompt": "Teach me how B-tree database indexes work and when they hurt performance. Use AskLilOwl and assume I am a working software engineer.",
+      "tags": ["adult", "technical", "direct"],
+      "expected": {
+        "toolDecision": "call",
+        "toolName": "create_lesson",
+        "audience": "adult technical learner",
+        "depth": "standard",
+        "requiresFreshResearch": false,
+        "expectsImages": false
+      }
+    },
+    {
+      "id": "current-market-context",
+      "type": "positive",
+      "prompt": "Use AskLilOwl to explain why the S&P 500 moved today. Research current sources, distinguish facts from possible explanations, and do not give investment advice.",
+      "tags": ["current-information", "research", "financial-literacy"],
+      "expected": {
+        "toolDecision": "call",
+        "toolName": "create_lesson",
+        "audience": "general adult learner",
+        "depth": "standard",
+        "requiresFreshResearch": true,
+        "expectsImages": false
+      }
+    },
+    {
+      "id": "deep-immune-system",
+      "type": "positive",
+      "prompt": "Give me a deep AskLilOwl lesson on innate versus adaptive immunity for an undergraduate biology student, including important caveats and a challenging quiz.",
+      "tags": ["deep", "science", "advanced"],
+      "expected": {
+        "toolDecision": "call",
+        "toolName": "create_lesson",
+        "audience": "undergraduate biology learner",
+        "depth": "deep",
+        "requiresFreshResearch": true,
+        "expectsImages": false
+      }
+    },
+    {
+      "id": "image-backed-water-cycle",
+      "type": "positive",
+      "prompt": "Make an AskLilOwl lesson for a 10-year-old about the water cycle. If native image generation is available, include one diagram that labels evaporation, condensation, and precipitation.",
+      "tags": ["image", "young-learner", "science"],
+      "expected": {
+        "toolDecision": "call",
+        "toolName": "create_lesson",
+        "audience": "young learner",
+        "depth": "standard",
+        "requiresFreshResearch": false,
+        "expectsImages": true
+      }
+    },
+    {
+      "id": "indirect-lesson-request",
+      "type": "positive",
+      "prompt": "Turn your explanation above into an interactive lesson with a few slides and a quiz using AskLilOwl.",
+      "setup": "The prior assistant turn explained plate tectonics for a general adult audience.",
+      "tags": ["indirect", "context"],
+      "expected": {
+        "toolDecision": "call",
+        "toolName": "create_lesson",
+        "audience": "general adult learner",
+        "depth": "standard",
+        "requiresFreshResearch": false,
+        "expectsImages": false
+      }
+    },
+    {
+      "id": "follow-up-simplification",
+      "type": "positive",
+      "prompt": "That was too technical. Rebuild the AskLilOwl lesson for a 9-year-old and make the quiz easier.",
+      "setup": "The prior AskLilOwl lesson explained electricity for an adult audience.",
+      "tags": ["follow-up", "adaptation", "young-learner"],
+      "expected": {
+        "toolDecision": "call",
+        "toolName": "create_lesson",
+        "audience": "young learner",
+        "depth": "quick",
+        "requiresFreshResearch": false,
+        "expectsImages": false
+      }
+    },
+    {
+      "id": "model-selection-request",
+      "type": "negative",
+      "prompt": "AskLilOwl, switch this conversation to the Thinking model for me.",
+      "tags": ["model-selection", "unsupported-action"],
+      "expected": {
+        "toolDecision": "do_not_call",
+        "reason": "AskLilOwl cannot choose or change the ChatGPT model."
+      }
+    },
+    {
+      "id": "send-teacher-email",
+      "type": "negative",
+      "prompt": "Use AskLilOwl to email my teacher the lesson and mark it as submitted.",
+      "tags": ["unsupported-action", "external-side-effect"],
+      "expected": {
+        "toolDecision": "do_not_call",
+        "reason": "AskLilOwl renders lessons and cannot send email or submit work."
+      }
+    },
+    {
+      "id": "voice-transcription-request",
+      "type": "negative",
+      "prompt": "Use AskLilOwl to transcribe this two-hour recording and create a voiced podcast.",
+      "tags": ["unsupported-action", "audio"],
+      "expected": {
+        "toolDecision": "do_not_call",
+        "reason": "The app does not transcribe audio or provide text-to-speech."
+      }
+    },
+    {
+      "id": "unrelated-poem",
+      "type": "negative",
+      "prompt": "Write a four-line poem about autumn. Do not make a lesson or quiz.",
+      "tags": ["irrelevant", "explicit-exclusion"],
+      "expected": {
+        "toolDecision": "do_not_call",
+        "reason": "The user explicitly requested ordinary chat output rather than a lesson."
+      }
+    }
+  ]
+}
