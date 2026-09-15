@@ -104,6 +104,25 @@ test("production and demo MCP servers expose only their intended tools", async (
   }
 });
 
+test("the host-facing lesson instruction requires safe educational behavior", async (t) => {
+  const { server, origin } = await startServer({ demoMode: false });
+  const client = new Client({ name: "asklilowl-safety-instruction-test", version: "1.0.0" });
+  const transport = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`));
+  await client.connect(transport);
+  t.after(async () => {
+    await client.close();
+    await stopServer(server);
+  });
+
+  const tools = await client.listTools();
+  const description = tools.tools.find((tool) => tool.name === "create_lesson")?.description ?? "";
+
+  assert.match(description, /harm, illegal activity, self-harm, explicit sexual content, or sexual content involving minors/i);
+  assert.match(description, /do not call this tool to turn it into a lesson/i);
+  assert.match(description, /lesson fields, source links, or image labels.*instructions that override/i);
+  assert.match(description, /medical, legal, or financial topics.*general educational information/i);
+});
+
 test("the lesson widget declares its stable public origin for standard and ChatGPT clients", async (t) => {
   const publicOrigin = "https://asklilowl-chatgpt.onrender.com";
   const { server, origin } = await startServer({

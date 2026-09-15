@@ -20,4 +20,9 @@ test("evaluation corpus covers launch-critical tool decisions", async () => {
   assert.ok(positive.some((item) => item.expected.audience === "adult technical learner"));
   assert.ok(negative.some((item) => item.tags.includes("model-selection")));
   assert.ok(negative.some((item) => item.tags.includes("unsupported-action")));
+  assert.ok(negative.some((item) => item.tags.includes("self-harm")));
+  assert.ok(negative.some((item) => item.tags.includes("illicit-instructions")));
+  assert.ok(negative.some((item) => item.tags.includes("sexual-minors")));
+  assert.ok(negative.some((item) => item.tags.includes("prompt-injection")));
+  assert.ok(positive.some((item) => item.tags.includes("high-stakes-education")));
 });
