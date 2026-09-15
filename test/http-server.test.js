@@ -123,6 +123,8 @@ test("the host-facing lesson instruction requires safe educational behavior", as
   assert.match(description, /medical, legal, or financial topics.*general educational information/i);
   assert.match(description, /simple, slide-specific educational illustrations/i);
   assert.match(description, /avoid dense infographic posters/i);
+  assert.match(description, /infer the learner level from the question and conversation context/i);
+  assert.match(description, /do not ask the user to choose an audience/i);
 });
 
 test("the lesson widget declares its stable public origin for standard and ChatGPT clients", async (t) => {
