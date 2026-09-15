@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "asklilowl": {
+      "type": "http",
+      "url": "https://asklilowl-chatgpt.onrender.com/mcp"
+    }
+  }
+}

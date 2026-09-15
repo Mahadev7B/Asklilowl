@@ -11,74 +11,52 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 
+import {
+  DEMO_LESSON_IDS,
+  getDemoLesson,
+  isDemoModeEnabled,
+} from "./demo-fixtures.js";
+import { createRateLimiter, setSecurityHeaders } from "./http-security.js";
+import { buildLesson } from "./lesson.js";
+import { lessonInputShape, lessonOutputShape } from "./lesson-schema.js";
+import { createSpeechService } from "./speech.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const LESSON_URI = "ui://asklilowl/lesson.html";
+const MCP_PATH = "/mcp";
+export const MAX_MCP_BODY_BYTES = 2 * 1024 * 1024;
+
 const lessonHtml = readFileSync(
   path.join(__dirname, "public", "lesson-widget.html"),
   "utf8"
 );
-const testBirdSvg = readFileSync(
-  path.join(__dirname, "public", "test-bird.svg"),
-  "utf8"
+
+const publicPages = new Map(
+  ["about", "privacy", "terms", "support"].map((name) => [
+    `/${name}`,
+    readFileSync(path.join(__dirname, "public", `${name}.html`), "utf8"),
+  ])
 );
 
-const LESSON_URI = "ui://asklilowl/lesson.html";
-const MCP_PATH = "/mcp";
-const PUBLIC_ORIGIN = (
-  process.env.PUBLIC_ORIGIN ?? "https://asklilowl-chatgpt.onrender.com"
-).replace(/\/+$/, "");
-
-const slideSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1),
-  body: z.string().min(1),
-  funFact: z.string().optional(),
-  imageAlt: z.string().optional(),
-  imageIndex: z.number().int().nonnegative().optional(),
-});
-
-const quizQuestionSchema = z.object({
-  question: z.string().min(1),
-  choices: z.array(z.string().min(1)).min(2).max(6),
-  answerIndex: z.number().int().nonnegative(),
-  explanation: z.string().optional(),
-});
-
-function normalizeImages(input) {
-  const images = Array.isArray(input) ? input : input ? [input] : [];
-
-  return images.map((image, index) => {
-    if (typeof image === "string") {
-      return {
-        index,
-        fileId: image.startsWith("file_") || image.startsWith("file-") ? image : null,
-        url: /^https?:\/\//i.test(image) || image.startsWith("data:") ? image : null,
-        mimeType: null,
-        fileName: `lesson-image-${index + 1}`,
-        size: null,
-      };
-    }
-
-    return {
-      index,
-      fileId: image?.file_id ?? image?.fileId ?? null,
-      url: image?.download_url ?? image?.downloadUrl ?? image?.url ?? null,
-      mimeType: image?.mime_type ?? image?.mimeType ?? null,
-      fileName:
-        image?.file_name ??
-        image?.fileName ??
-        image?.name ??
-        `lesson-image-${index + 1}`,
-      size: image?.size ?? null,
-    };
-  });
+function defaultPublicOrigin() {
+  return (
+    process.env.PUBLIC_ORIGIN ?? "https://asklilowl-chatgpt.onrender.com"
+  ).replace(/\/+$/, "");
 }
 
-function createAskLilOwlServer() {
-  const server = new McpServer({
-    name: "asklilowl-plugin-server",
-    version: "0.1.4",
-  });
+export function createAskLilOwlServer({
+  demoMode = isDemoModeEnabled(),
+  publicOrigin = defaultPublicOrigin(),
+  speechService = createSpeechService({ publicOrigin }),
+} = {}) {
+  const server = new McpServer(
+    { name: "asklilowl-plugin-server", version: "0.3.0" },
+    {
+      instructions:
+        "AskLilOwl renders lessons created by the active host model. Before calling create_lesson, research when needed, write a complete age-appropriate lesson, generate useful educational images when available, and pass the finished content and files. Do not request or select a specific model. Inspector demo tools are test-only.",
+    }
+  );
 
   registerAppResource(
     server,
@@ -95,13 +73,14 @@ function createAskLilOwlServer() {
           mimeType: RESOURCE_MIME_TYPE,
           text: lessonHtml,
           _meta: {
+            "openai/widgetDomain": publicOrigin,
             ui: {
+              domain: publicOrigin,
               csp: {
-                connectDomains: [],
+                connectDomains: [publicOrigin],
                 resourceDomains: [
-                  PUBLIC_ORIGIN,
-                  "https://images.pexels.com",
-                  "https://*.oaiusercontent.com"
+                  publicOrigin,
+                  "https://*.oaiusercontent.com",
                 ],
               },
             },
@@ -126,39 +105,9 @@ function createAskLilOwlServer() {
         "Use the minimum number of slides needed for a clear explanation and create an age/skill-appropriate quiz. " +
         "When native ChatGPT image generation is available, generate useful educational illustrations before calling this tool and pass those ChatGPT-managed image files in the images parameter. " +
         "Prefer images that directly teach the slide concept rather than decorative pictures. Each slide can point to one image with imageIndex. " +
-        "Do not call an external language model, image provider, or TTS provider from this tool. The AskLilOwl backend should only render the lesson content and files ChatGPT supplies.",
-      inputSchema: {
-        topic: z.string().min(1).describe("The topic or question being explained."),
-        title: z.string().min(1).describe("Short lesson title."),
-        audience: z
-          .string()
-          .min(1)
-          .describe("Intended learner level, such as young learner, teen, adult, or expert."),
-        depth: z
-          .enum(["quick", "standard", "deep"])
-          .default("standard")
-          .describe("Requested lesson depth."),
-        summary: z
-          .string()
-          .optional()
-          .describe("One-sentence overview of what the learner will understand."),
-        slides: z
-          .array(slideSchema)
-          .min(3)
-          .max(20)
-          .describe("Dynamically sized lesson slides, written for the requested learner level."),
-        quiz: z
-          .array(quizQuestionSchema)
-          .min(1)
-          .max(10)
-          .describe("Short multiple-choice comprehension quiz matched to the lesson and learner level."),
-        images: z
-          .any()
-          .optional()
-          .describe(
-            "ChatGPT-managed educational image file input generated or supplied in the current ChatGPT conversation. ChatGPT may supply one file object or an array of file objects."
-          ),
-      },
+        "Write concise narration for every slide, matching the visible content and learner level. AskLilOwl securely generates the voiceover after the learner starts playback. Do not call another language model or image provider from this tool.",
+      inputSchema: lessonInputShape,
+      outputSchema: lessonOutputShape,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -170,51 +119,27 @@ function createAskLilOwlServer() {
       },
     },
     async (args) => {
-      const images = normalizeImages(args.images);
-      const slides = args.slides.map((slide, index) => ({
-        ...slide,
-        number: index + 1,
-        imageIndex:
-          typeof slide.imageIndex === "number" && slide.imageIndex < images.length
-            ? slide.imageIndex
-            : images[index]
-              ? index
-              : null,
-      }));
-
-      const invalidQuiz = args.quiz.find(
-        (item) => item.answerIndex < 0 || item.answerIndex >= item.choices.length
-      );
-
-      if (invalidQuiz) {
+      let lesson;
+      try {
+        lesson = buildLesson(args, { speechService });
+      } catch (error) {
+        if (!(error instanceof RangeError)) throw error;
         return {
           isError: true,
           content: [
             {
               type: "text",
-              text: "A quiz question has an answerIndex outside its choices array. Please regenerate that question and call create_lesson again.",
+              text: `${error.message} Please regenerate that question and call create_lesson again.`,
             },
           ],
         };
       }
 
-      const lesson = {
-        topic: args.topic,
-        title: args.title,
-        audience: args.audience,
-        depth: args.depth,
-        summary: args.summary ?? "",
-        slideCount: slides.length,
-        slides,
-        quiz: args.quiz,
-        images,
-      };
-
       return {
         content: [
           {
             type: "text",
-            text: `AskLilOwl prepared “${args.title}” with ${slides.length} slides and ${args.quiz.length} quiz question${args.quiz.length === 1 ? "" : "s"}.`,
+            text: `AskLilOwl prepared “${lesson.title}” with ${lesson.slideCount} slides and ${lesson.quiz.length} quiz question${lesson.quiz.length === 1 ? "" : "s"}.`,
           },
         ],
         structuredContent: { lesson },
@@ -222,78 +147,235 @@ function createAskLilOwlServer() {
     }
   );
 
+  if (demoMode) {
+    registerAppTool(
+      server,
+      "preview_demo_lesson",
+      {
+        title: "Preview AskLilOwl demo lesson",
+        description:
+          "Preview one fixed AskLilOwl lesson in MCP Inspector. This test-only tool does not research, generate content, or represent the production ChatGPT flow. Use create_lesson for real user requests.",
+        inputSchema: {
+          fixture: z
+            .enum(DEMO_LESSON_IDS)
+            .describe("The built-in lesson fixture to preview in MCP Inspector."),
+        },
+        outputSchema: lessonOutputShape,
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
+        _meta: { ui: { resourceUri: LESSON_URI } },
+      },
+      async ({ fixture }) => {
+        const lesson = getDemoLesson(fixture, { publicOrigin });
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Demo content only: AskLilOwl loaded “${lesson.title}” for MCP Inspector UI testing.`,
+            },
+          ],
+          structuredContent: { lesson },
+        };
+      }
+    );
+  }
+
   return server;
 }
 
-const port = Number(process.env.PORT ?? 8787);
+function requestAddress(request) {
+  return request.socket.remoteAddress ?? "unknown";
+}
 
-const httpServer = createServer(async (req, res) => {
-  if (!req.url) {
-    res.writeHead(400).end("Missing URL");
-    return;
-  }
+function contentLength(request) {
+  const raw = request.headers["content-length"];
+  if (raw === undefined) return 0;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
 
-  const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+export function createAskLilOwlHttpServer({
+  demoMode = isDemoModeEnabled(),
+  publicOrigin = defaultPublicOrigin(),
+  maxRequestBytes = MAX_MCP_BODY_BYTES,
+  rateLimit = { limit: 300, windowMs: 60_000 },
+  speechOptions = {},
+} = {}) {
+  const limiter = createRateLimiter(rateLimit);
+  const speechLimiter = createRateLimiter({ limit: 60, windowMs: 600_000 });
+  const speechService = createSpeechService({ publicOrigin, ...speechOptions });
+  const speechCache = new Map();
+  const testBirdSvg = demoMode
+    ? readFileSync(path.join(__dirname, "public", "test-bird.svg"), "utf8")
+    : null;
 
-  if (req.method === "OPTIONS" && url.pathname === MCP_PATH) {
-    res.writeHead(204, {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "content-type, mcp-session-id",
-      "Access-Control-Expose-Headers": "Mcp-Session-Id",
-    });
-    res.end();
-    return;
-  }
+  const httpServer = createServer(async (request, response) => {
+    setSecurityHeaders(response);
 
-  if (req.method === "GET" && url.pathname === "/") {
-    res
-      .writeHead(200, { "content-type": "text/plain; charset=utf-8" })
-      .end("AskLilOwl MCP server is running. Use /mcp from ChatGPT or MCP Inspector.");
-    return;
-  }
-
-  if (req.method === "GET" && url.pathname === "/test-bird.svg") {
-    res.writeHead(200, {
-      "content-type": "image/svg+xml; charset=utf-8",
-      "cache-control": "no-store",
-      "access-control-allow-origin": "*",
-    });
-    res.end(testBirdSvg);
-    return;
-  }
-
-  const MCP_METHODS = new Set(["POST", "GET", "DELETE"]);
-  if (url.pathname === MCP_PATH && req.method && MCP_METHODS.has(req.method)) {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
-
-    const server = createAskLilOwlServer();
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-      enableJsonResponse: true,
-    });
-
-    res.on("close", () => {
-      transport.close();
-      server.close();
-    });
-
-    try {
-      await server.connect(transport);
-      await transport.handleRequest(req, res);
-    } catch (error) {
-      console.error("Error handling MCP request:", error);
-      if (!res.headersSent) {
-        res.writeHead(500).end("Internal server error");
-      }
+    const rate = limiter.consume(requestAddress(request));
+    response.setHeader("RateLimit-Remaining", String(rate.remaining));
+    if (!rate.allowed) {
+      response.setHeader("Retry-After", String(rate.retryAfterSeconds));
+      response.writeHead(429).end("Too Many Requests");
+      return;
     }
-    return;
-  }
 
-  res.writeHead(404).end("Not Found");
-});
+    if (!request.url) {
+      response.writeHead(400).end("Missing URL");
+      return;
+    }
 
-httpServer.listen(port, () => {
-  console.log(`AskLilOwl MCP server listening on http://localhost:${port}${MCP_PATH}`);
-});
+    const url = new URL(
+      request.url,
+      `http://${request.headers.host ?? "localhost"}`
+    );
+
+    if (url.pathname.startsWith("/api/speech/")) {
+      if (!request.method || !["GET", "HEAD"].includes(request.method)) {
+        response.writeHead(405, { Allow: "GET, HEAD" }).end("Method Not Allowed");
+        return;
+      }
+      const speechRate = speechLimiter.consume(requestAddress(request));
+      if (!speechRate.allowed) {
+        response.writeHead(429, { "Retry-After": String(speechRate.retryAfterSeconds) }).end("Voice temporarily unavailable");
+        return;
+      }
+      const token = decodeURIComponent(url.pathname.slice("/api/speech/".length));
+      let payload;
+      try {
+        payload = speechService.verifyToken(token);
+      } catch (error) {
+        response.writeHead(error instanceof RangeError ? 410 : 401).end(error instanceof RangeError ? "Voice session expired" : "Invalid voice authorization");
+        return;
+      }
+      if (!speechService.enabled) {
+        response.writeHead(503).end("Voice temporarily unavailable");
+        return;
+      }
+      if (request.method === "HEAD") {
+        response.writeHead(200, { "content-type": "audio/mpeg", "cache-control": "private, max-age=86400" }).end();
+        return;
+      }
+      const digest = speechService.tokenDigest(token);
+      try {
+        let audio = speechCache.get(digest);
+        if (!audio) {
+          audio = await speechService.generate(payload);
+          speechCache.set(digest, audio);
+          while (speechCache.size > 64) speechCache.delete(speechCache.keys().next().value);
+        }
+        response.writeHead(200, { "content-type": audio.contentType, "content-length": String(audio.bytes.length), "cache-control": "private, max-age=86400" });
+        response.end(audio.bytes);
+      } catch {
+        response.writeHead(502).end("Voice temporarily unavailable");
+      }
+      return;
+    }
+
+    if (request.method === "OPTIONS" && url.pathname === MCP_PATH) {
+      response.writeHead(204, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "content-type, mcp-session-id",
+        "Access-Control-Expose-Headers": "Mcp-Session-Id",
+      });
+      response.end();
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/") {
+      response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+      response.end(
+        "AskLilOwl MCP server is running. Use /mcp from ChatGPT or MCP Inspector."
+      );
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/healthz") {
+      response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      response.end(JSON.stringify({ status: "ok", service: "asklilowl-mcp" }));
+      return;
+    }
+
+    if (request.method === "GET" && publicPages.has(url.pathname)) {
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      response.end(publicPages.get(url.pathname));
+      return;
+    }
+
+    if (demoMode && request.method === "GET" && url.pathname === "/test-bird.svg") {
+      response.writeHead(200, {
+        "content-type": "image/svg+xml; charset=utf-8",
+        "cache-control": "no-store",
+        "access-control-allow-origin": "*",
+      });
+      response.end(testBirdSvg);
+      return;
+    }
+
+    const mcpMethods = new Set(["POST", "GET", "DELETE"]);
+    if (
+      url.pathname === MCP_PATH &&
+      request.method &&
+      mcpMethods.has(request.method)
+    ) {
+      const length = contentLength(request);
+      if (length === null) {
+        response.writeHead(400).end("Invalid Content-Length");
+        return;
+      }
+      if (length > maxRequestBytes) {
+        response.writeHead(413).end("MCP request body is too large");
+        return;
+      }
+
+      response.setHeader("Access-Control-Allow-Origin", "*");
+      response.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
+
+      const server = createAskLilOwlServer({ demoMode, publicOrigin, speechService });
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+        enableJsonResponse: true,
+      });
+
+      response.on("close", () => {
+        transport.close();
+        server.close();
+      });
+
+      try {
+        await server.connect(transport);
+        await transport.handleRequest(request, response);
+      } catch (error) {
+        console.error("Error handling MCP request:", error);
+        if (!response.headersSent) {
+          response.writeHead(500).end("Internal server error");
+        }
+      }
+      return;
+    }
+
+    response.writeHead(404).end("Not Found");
+  });
+
+  httpServer.requestTimeout = 30_000;
+  httpServer.headersTimeout = 15_000;
+  httpServer.keepAliveTimeout = 5_000;
+  return httpServer;
+}
+
+const isDirectRun =
+  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename);
+
+if (isDirectRun) {
+  const port = Number(process.env.PORT ?? 8787);
+  const httpServer = createAskLilOwlHttpServer();
+  httpServer.listen(port, () => {
+    console.log(
+      `AskLilOwl MCP server listening on http://localhost:${port}${MCP_PATH}`
+    );
+  });
+}

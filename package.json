@@ -1,12 +1,16 @@
 {
   "name": "asklilowl-chatgpt-plugin",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Plugin-only AskLilOwl MCP app for ChatGPT.",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node --test",
+    "test:evals": "node scripts/validate-evals.js",
+    "test:package": "node scripts/validate-package.js",
+    "preview": "node scripts/preview-widget.js"
   },
   "engines": {
     "node": ">=20"
@@ -15,5 +19,8 @@
     "@modelcontextprotocol/ext-apps": "^1.0.1",
     "@modelcontextprotocol/sdk": "^1.20.2",
     "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
   }
 }

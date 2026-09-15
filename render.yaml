@@ -2,10 +2,22 @@ services:
   - type: web
     name: asklilowl-mcp
     runtime: node
-    plan: starter
-    buildCommand: npm install
+    plan: free
+    buildCommand: npm ci --omit=dev
     startCommand: npm start
-    healthCheckPath: /
+    healthCheckPath: /healthz
     envVars:
       - key: NODE_VERSION
         value: 20
+      - key: PUBLIC_ORIGIN
+        value: https://asklilowl-chatgpt.onrender.com
+      - key: ASKLILOWL_DEMO_MODE
+        value: "false"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: VOICE_TOKEN_SECRET
+        generateValue: true
+      - key: OPENAI_TTS_MODEL
+        value: gpt-4o-mini-tts
+      - key: OPENAI_TTS_VOICE
+        value: marin

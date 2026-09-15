@@ -1,0 +1,32 @@
+{
+  "name": "asklilowl",
+  "version": "0.3.0",
+  "description": "Turns lessons created by ChatGPT into interactive, audience-aware slides and quizzes.",
+  "author": {
+    "name": "Mahadev7B",
+    "url": "https://github.com/Mahadev7B"
+  },
+  "homepage": "https://asklilowl-chatgpt.onrender.com/about",
+  "repository": "https://github.com/Mahadev7B/Asklilowl",
+  "keywords": ["education", "lessons", "quiz", "learning", "interactive"],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "AskLilOwl",
+    "shortDescription": "Turn explanations into interactive lessons and quizzes.",
+    "longDescription": "AskLilOwl renders complete, audience-aware lessons created in the active ChatGPT conversation as interactive slides with optional educational images, learning objectives, sources, and a comprehension quiz.",
+    "developerName": "Mahadev7B",
+    "category": "Education",
+    "capabilities": ["Interactive", "Read"],
+    "websiteURL": "https://asklilowl-chatgpt.onrender.com/about",
+    "privacyPolicyURL": "https://asklilowl-chatgpt.onrender.com/privacy",
+    "termsOfServiceURL": "https://asklilowl-chatgpt.onrender.com/terms",
+    "defaultPrompt": [
+      "Teach my child how birds fly with a short quiz.",
+      "Explain database indexes as an interactive lesson.",
+      "Research a current topic and teach it with sources."
+    ],
+    "brandColor": "#5A3A7A",
+    "composerIcon": "./assets/asklilowl-icon.png",
+    "logo": "./assets/asklilowl-logo.png"
+  }
+}

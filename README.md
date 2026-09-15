@@ -1,79 +1,117 @@
-# AskLilOwl — ChatGPT Plugin Prototype
+# AskLilOwl — ChatGPT Plugin
 
-This repository is the plugin-only version of AskLilOwl. The existing production app is intentionally left untouched.
+AskLilOwl turns a question into an interactive visual lesson inside ChatGPT. This repository contains only the MCP server and embedded lesson widget; the existing standalone application is intentionally untouched.
 
-## Goal
+## How the production flow works
 
-Turn any question into an interactive visual lesson inside ChatGPT while avoiding separate per-lesson AI provider costs.
+1. The user enables AskLilOwl in ChatGPT and asks a question normally.
+2. The active ChatGPT model researches when needed, writes an audience-appropriate lesson, chooses its length, and generates useful educational images when available.
+3. ChatGPT calls `create_lesson` with the completed lesson, quiz, sources, and image files.
+4. AskLilOwl validates that payload and renders the lesson in its interactive widget.
 
-Target flow:
+AskLilOwl does **not** select a ChatGPT model. It uses whichever model ChatGPT is currently running or routes to for the conversation. There is also no AskLilOwl `Thinking` mode setting: reasoning controls belong to the ChatGPT host, when the host exposes them, and should not be duplicated in this plugin.
 
-1. The user asks AskLilOwl to explain a topic.
-2. ChatGPT creates the lesson content itself.
-3. ChatGPT chooses a dynamic slide count based on topic complexity and requested depth.
-4. ChatGPT generates lesson images with its native image-generation capability when available.
-5. ChatGPT calls the `create_lesson` MCP tool with the lesson, quiz, and image files.
-6. AskLilOwl renders the lesson in its own interactive widget.
+The host ChatGPT model writes the lesson and supplies ChatGPT-managed educational images through `_meta["openai/fileParams"]`. After the learner presses Start lesson, the AskLilOwl server sends only that slide's narration text to OpenAI's Speech API and streams an AI-generated `marin` voiceover. API credentials remain server-side; images and quiz answers are not sent for narration, and generated audio is not retained in an application database.
 
-There are no Anthropic, Fal.ai, or OpenAI API calls in this prototype.
+## User experience
 
-## Dynamic lesson length
+The user does not need to configure a model inside AskLilOwl. The widget communicates only states that are useful to the learner:
 
-AskLilOwl does not force four slides.
+- a lesson-preparation state while ChatGPT is working;
+- lesson objectives and optional source links;
+- an explicit badge when fixed Inspector demo content is shown;
+- a clear error instead of a blank panel when a payload is invalid;
+- the disclosure “AI-generated lesson. Verify important information.”
 
-- Quick/simple: typically 4–5 slides
-- Standard/moderate: typically 6–8 slides
-- Complex: typically 9–12 slides
-- Deep dive: up to 20 slides
+## MCP tools
 
-The model should use the minimum number of slides needed to explain the topic clearly.
+### `create_lesson`
 
-## Current prototype
+The production tool. It receives a finished lesson with 3–20 slides, an audience level, learning objectives, a quiz, optional source links, and optional ChatGPT-managed image files.
 
-The initial MCP server exposes:
+Lesson length is dynamic. Typical guidance is 4–5 slides for a quick topic, 6–8 for a standard topic, 9–12 for a complex topic, and up to 20 for a deep dive. The host model should use only the number needed to teach the topic clearly.
 
-- `create_lesson` — receives a completed lesson, quiz, and optional ChatGPT-managed image files and renders them in the AskLilOwl widget.
-- `/mcp` — Streamable HTTP MCP endpoint for ChatGPT/Inspector.
-- `/` — health endpoint only. This repository is not intended to expose a standalone lesson website.
+### `preview_demo_lesson`
 
-Image handoff is declared with `_meta["openai/fileParams"]` so we can validate the important path: ChatGPT-generated image → MCP tool → AskLilOwl widget.
+A test-only tool registered only when `ASKLILOWL_DEMO_MODE=true`. It provides these fixed MCP Inspector fixtures:
+
+- `birds-young-learner`
+- `photosynthesis-middle-school`
+- `database-indexes-adult`
+- `current-topic-workflow`
+
+The current-topic fixture explains the research workflow; it does not pretend that Inspector performed live research. In normal production mode, this tool is absent and `/test-bird.svg` returns 404.
 
 ## Run locally
 
-Requires Node.js 20+.
+Requires Node.js 20 or later.
 
 ```bash
 npm install
+npm test
+npm run test:evals
+npm run test:package
 npm start
 ```
 
-The MCP endpoint will be available at:
+The Streamable HTTP endpoint is `http://localhost:8787/mcp`. `/healthz` is the machine-readable health endpoint; `/about`, `/privacy`, `/terms`, and `/support` provide public product information.
 
-```text
-http://localhost:8787/mcp
+### One-click Inspector demos
+
+Start the server with demo mode explicitly enabled.
+
+PowerShell:
+
+```powershell
+$env:ASKLILOWL_DEMO_MODE="true"
+$env:PUBLIC_ORIGIN="http://localhost:8787"
+npm start
 ```
 
-Test it with MCP Inspector:
+macOS/Linux:
+
+```bash
+ASKLILOWL_DEMO_MODE=true PUBLIC_ORIGIN=http://localhost:8787 npm start
+```
+
+Then launch MCP Inspector:
 
 ```bash
 npx @modelcontextprotocol/inspector@latest
 ```
 
-Choose **Streamable HTTP** and connect to `http://localhost:8787/mcp`.
+Choose **Streamable HTTP**, connect to `http://localhost:8787/mcp`, select `preview_demo_lesson`, choose a fixture, and run it. Inspector supplies the fixed fixture; it does not invoke ChatGPT to write or research the lesson.
+
+## Test the real ChatGPT behavior
+
+1. Deploy the server at a stable public HTTPS endpoint.
+2. Leave `ASKLILOWL_DEMO_MODE` unset in production.
+3. Enable ChatGPT Developer Mode and add the deployed `/mcp` endpoint.
+4. Start a conversation with AskLilOwl enabled and ask for a lesson.
+5. Verify that ChatGPT creates the content, uses research for time-sensitive claims, passes sources and any generated image files, and opens the widget.
+6. Test simple, current, and technical questions plus invalid payload and unavailable-image cases.
 
 ## Deployment
 
-A `render.yaml` is included so this can later be deployed as a separate Render service. No AI-provider secret is required for the prototype.
+`render.yaml` defines a free Render web service with `/healthz` as its health check. No AI-provider secret or paid third-party API is required. Configure `PUBLIC_ORIGIN` to the service's public HTTPS origin if it differs from the default. Do not set `ASKLILOWL_DEMO_MODE` in production.
 
-## Next milestones
+## Plugin package
 
-1. Prove text lesson → dynamic slides → widget.
-2. Prove ChatGPT-generated image → `openai/fileParams` → widget.
-3. Refine the widget to match the existing AskLilOwl experience.
-4. Add narration strategy.
-5. Add parent/teacher account and saved lesson history only after the core plugin flow works.
-6. Test privately in ChatGPT Developer Mode before any submission.
+- `plugin.json` is the portable Agent Plugins manifest.
+- `mcp.json` declares the portable Streamable HTTP server.
+- `.codex-plugin/plugin.json` and `.mcp.json` provide the supported compatibility layout.
+- `assets/` contains the app icon and logo.
+- `evals/cases.json` contains versioned tool-selection and product-quality cases.
+- `submission/` contains listing copy, review cases, and the live-test record.
 
-## Security note
+The package intentionally has no bundled model setting or `Thinking` control. The active ChatGPT conversation owns model routing, research, writing, and native image generation.
+
+## Limits and operational safeguards
+
+The lesson contract sets explicit limits on text, slides, quiz questions, sources, and image descriptors. The server rejects declared MCP bodies over 2 MiB, validates HTTP(S) source links, applies conservative per-address rate limiting, emits secure HTTP headers, and declares the structured output schema used by the widget.
+
+The widget uses system typography, AA-oriented contrast, visible keyboard focus, semantic progress state, responsive layouts, dark mode, reduced-motion support, and session-only progress restoration. It stores no lesson content in an application database.
+
+## Security
 
 Never commit API keys, database passwords, OAuth secrets, or signed temporary file URLs to this repository.

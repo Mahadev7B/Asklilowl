@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -6,168 +6,244 @@
   <title>AskLilOwl lesson</title>
   <style>
     :root {
-      --bg: #fff8f0;
-      --surface: #ffffff;
-      --ink: #2d3142;
-      --muted: #777386;
-      --orange: #ff6b35;
-      --yellow: #f7b801;
-      --purple: #6a4c93;
-      --cream: #fff3e8;
-      --line: rgba(255,107,53,.16);
-      --good: #257942;
-      --bad: #b53b34;
-      --shadow: 0 16px 45px rgba(106,76,147,.10);
+      color-scheme: light dark;
+      --canvas: Canvas;
+      --surface: Canvas;
+      --ink: CanvasText;
+      --muted: #5c5663;
+      --accent: #5a3a7a;
+      --accent-hover: #482c65;
+      --accent-soft: #f1ebf7;
+      --warm-soft: #fff1e7;
+      --warm-ink: #713710;
+      --line: #ded8e2;
+      --good: #176b3a;
+      --good-soft: #eaf7ef;
+      --bad: #9b302d;
+      --bad-soft: #fff0ee;
+      --focus: #1769aa;
     }
 
     * { box-sizing: border-box; }
     html, body { margin: 0; min-height: 100%; }
     body {
       padding: 16px;
-      background: radial-gradient(circle at top left, #fff0df 0, transparent 38%), var(--bg);
+      background: transparent;
       color: var(--ink);
-      font-family: ui-rounded, "Avenir Next Rounded", "Nunito", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 1rem;
+      line-height: 1.5;
     }
 
-    button { font: inherit; }
-    .app { width: min(820px, 100%); margin: 0 auto; }
-    .empty { background: var(--surface); border: 2px solid var(--line); border-radius: 24px; padding: 54px 24px; text-align: center; box-shadow: var(--shadow); color: var(--muted); }
-    .empty[hidden], .lesson[hidden], .quiz[hidden] { display: none; }
-
-    .header-card {
-      background: rgba(255,255,255,.96);
-      border: 2px solid var(--line);
-      border-radius: 24px;
-      padding: 18px 20px;
-      box-shadow: 0 8px 28px rgba(255,107,53,.08);
-      margin-bottom: 14px;
+    button, summary { font: inherit; }
+    button { min-height: 44px; }
+    button:focus-visible, summary:focus-visible, a:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
     }
-    .top-row { display: flex; align-items: center; gap: 10px; }
-    .owl { font-size: 1.6rem; line-height: 1; }
-    .brand { color: var(--orange); font-weight: 850; letter-spacing: -.02em; }
-    .depth { margin-left: auto; padding: 6px 11px; border-radius: 999px; background: #f0eafd; color: var(--purple); font-size: .76rem; font-weight: 800; text-transform: capitalize; }
-    .topic { margin: 12px 0 3px; color: var(--purple); font-size: .88rem; font-weight: 700; }
-    h1 { margin: 0; font-size: clamp(1.45rem, 4vw, 2rem); line-height: 1.12; letter-spacing: -.03em; }
-    .summary { margin-top: 8px; color: var(--muted); font-size: .94rem; line-height: 1.48; }
+    [hidden] { display: none !important; }
 
-    .progress-shell { height: 9px; background: #f1e9e1; border-radius: 999px; overflow: hidden; margin: 0 5px 14px; }
-    .progress-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--orange), var(--yellow)); border-radius: inherit; transition: width .22s ease; }
+    .app { width: min(800px, 100%); margin: 0 auto; }
+    .empty, .header-card, .deck, .quiz, .sources {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+    }
+    .empty { padding: 48px 24px; text-align: center; color: var(--muted); }
+    .empty strong { display: block; color: var(--ink); font-size: 1.15rem; }
+    .empty.error { border-color: var(--bad); color: var(--bad); }
 
-    .deck { background: var(--surface); border: 2px solid var(--line); border-radius: 24px; overflow: hidden; box-shadow: var(--shadow); }
-    .visual { position: relative; aspect-ratio: 16 / 9; display: grid; place-items: center; overflow: hidden; background: linear-gradient(145deg, #f5eefe, #fff0dc); }
-    .visual::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 -40px 70px rgba(45,49,66,.05); }
+    .header-card { padding: 18px 20px; margin-bottom: 12px; }
+    .top-row { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .demo-notice, .depth {
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: .78rem;
+      font-weight: 700;
+    }
+    .demo-notice { background: var(--warm-soft); color: var(--warm-ink); }
+    .depth { background: var(--accent-soft); color: var(--accent); text-transform: capitalize; }
+    .topic { margin: 6px 0 3px; color: var(--accent); font-size: .88rem; font-weight: 700; }
+    h1 { margin: 0; font-size: clamp(1.45rem, 4vw, 2rem); line-height: 1.18; letter-spacing: -.02em; }
+    .summary { margin-top: 8px; color: var(--muted); }
+    .objectives { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: .92rem; }
+    .objectives strong { color: var(--accent); }
+    .objectives ul { margin: 6px 0 0; padding-left: 20px; }
+
+    .progress-shell { height: 8px; background: var(--accent-soft); border-radius: 999px; overflow: hidden; margin: 0 4px 12px; }
+    .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width .2s ease; }
+
+    .deck { overflow: hidden; }
+    .visual { aspect-ratio: 16 / 9; display: grid; place-items: center; overflow: hidden; background: var(--accent-soft); }
     .visual img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .image-placeholder { max-width: 390px; padding: 22px; text-align: center; color: var(--purple); line-height: 1.5; font-weight: 650; }
-
+    .image-placeholder { max-width: 390px; padding: 22px; text-align: center; color: var(--accent); font-weight: 650; }
     .slide-content { padding: 20px 22px 22px; }
-    .slide-meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; color: var(--purple); font-size: .8rem; font-weight: 800; }
-    .dots { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; border: 0; padding: 0; background: #ddd3e7; cursor: pointer; }
-    .dot.on { background: var(--orange); transform: scale(1.18); }
-    h2 { margin: 8px 0 10px; color: var(--orange); font-size: clamp(1.32rem, 3.5vw, 1.65rem); line-height: 1.2; }
-    .body-copy { margin: 0; color: var(--ink); line-height: 1.67; font-size: 1rem; white-space: pre-line; }
-    .fun-fact { margin-top: 16px; background: var(--cream); border-left: 5px solid var(--orange); border-radius: 14px; padding: 12px 14px; line-height: 1.5; font-size: .92rem; }
-    .fun-fact strong { color: var(--orange); }
+    .slide-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; color: var(--muted); font-size: .84rem; font-weight: 700; }
+    .dots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: flex-end; }
+    .dot { width: 36px; height: 36px; min-height: 36px; display: grid; place-items: center; border: 0; padding: 0; background: transparent; border-radius: 50%; cursor: pointer; }
+    .dot::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #aaa1b2; }
+    .dot:hover::before { background: var(--accent-hover); }
+    .dot.on::before { width: 12px; height: 12px; background: var(--accent); }
+    h2 { margin: 8px 0 10px; color: var(--accent); font-size: clamp(1.3rem, 3.5vw, 1.65rem); line-height: 1.25; }
+    .body-copy { margin: 0; line-height: 1.68; white-space: pre-line; }
+    .fun-fact { margin-top: 16px; background: var(--warm-soft); border-left: 5px solid var(--warm-ink); border-radius: 10px; padding: 12px 14px; font-size: .94rem; }
+    .fun-fact strong { color: var(--warm-ink); }
+    .voice-panel { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+    .voice-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .voice-actions button { padding: 7px 13px; }
+    .voice-status { color: var(--muted); font-size: .84rem; }
+    .narration-transcript { margin: 10px 0 0; color: var(--muted); font-size: .92rem; }
+    .voice-disclosure { margin-top: 7px; color: var(--muted); font-size: .76rem; }
 
-    .controls { display: flex; justify-content: space-between; gap: 10px; padding: 14px 4px 4px; }
-    button { border: 0; border-radius: 999px; padding: 11px 18px; font-weight: 800; cursor: pointer; transition: transform .12s ease, opacity .12s ease; }
+    .controls { display: flex; justify-content: space-between; gap: 10px; padding: 12px 2px 2px; }
+    button { border-radius: 999px; padding: 10px 18px; font-weight: 750; cursor: pointer; transition: background-color .12s ease, transform .12s ease; }
     button:active:not(:disabled) { transform: translateY(1px); }
-    button:disabled { opacity: .42; cursor: default; }
-    .secondary { background: white; color: var(--purple); border: 2px solid rgba(106,76,147,.18); }
-    .primary { color: white; background: linear-gradient(135deg, var(--orange), var(--yellow)); box-shadow: 0 5px 16px rgba(255,107,53,.20); }
+    button:disabled { cursor: default; opacity: .58; }
+    .secondary { background: var(--surface); color: var(--accent); border: 2px solid var(--accent); }
+    .primary { color: #fff; background: var(--accent); border: 2px solid var(--accent); }
+    .primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 
-    .lesson-footer { text-align: center; color: var(--purple); font-size: .78rem; margin-top: 14px; }
+    .sources { margin-top: 12px; padding: 12px 14px; color: var(--muted); font-size: .86rem; }
+    .sources summary { cursor: pointer; color: var(--accent); font-weight: 750; }
+    .sources ul { margin: 9px 0 0; padding-left: 20px; }
+    .sources a { color: var(--accent); overflow-wrap: anywhere; }
+    .disclosure { margin: 10px 4px 0; text-align: center; color: var(--muted); font-size: .78rem; }
 
-    .quiz { background: var(--surface); border: 2px solid var(--line); border-radius: 24px; padding: 22px; box-shadow: var(--shadow); }
-    .quiz-brand { display: flex; align-items: center; gap: 8px; color: var(--orange); font-weight: 850; margin-bottom: 16px; }
-    .quiz-meta { color: var(--purple); font-size: .82rem; font-weight: 800; }
+    .quiz { padding: 22px; }
+    .quiz-meta { color: var(--muted); font-size: .84rem; font-weight: 700; }
     .quiz h2 { color: var(--ink); margin-top: 8px; }
     .choices { display: grid; gap: 10px; margin-top: 16px; }
-    .choice { width: 100%; text-align: left; border: 2px solid rgba(255,107,53,.13); background: var(--cream); color: var(--ink); border-radius: 15px; padding: 13px 15px; font-weight: 700; }
-    .choice:hover:not(:disabled) { border-color: var(--orange); }
-    .choice.correct { background: #ebf8ef; border-color: var(--good); color: #1f6538; }
-    .choice.wrong { background: #fff0ee; border-color: var(--bad); color: #8f312c; }
-    .feedback { min-height: 46px; margin-top: 13px; color: var(--muted); line-height: 1.45; }
+    .choice { width: 100%; min-height: 48px; text-align: left; border: 2px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 12px 14px; font-weight: 650; }
+    .choice:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+    .choice.correct { background: var(--good-soft); border-color: var(--good); color: var(--good); }
+    .choice.wrong { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
+    .feedback { min-height: 48px; margin-top: 13px; color: var(--muted); }
     .quiz-actions { display: flex; justify-content: flex-end; margin-top: 6px; }
-    .score { text-align: center; padding: 30px 10px 18px; }
-    .score .trophy { font-size: 2.6rem; }
-    .score strong { display: block; color: var(--orange); font-size: 2.2rem; margin: 8px 0; }
+    .score { text-align: center; padding: 28px 10px 16px; }
+    .score .trophy { font-size: 2.5rem; }
+    .score strong { display: block; color: var(--accent); font-size: 2rem; margin: 8px 0; }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --muted: #c8c1cd;
+        --accent: #d7b8f5;
+        --accent-hover: #e7d3fb;
+        --accent-soft: #30273a;
+        --warm-soft: #3b2b20;
+        --warm-ink: #ffc595;
+        --line: #514a57;
+        --good: #8dd9a9;
+        --good-soft: #173524;
+        --bad: #ffaaa5;
+        --bad-soft: #462321;
+        --focus: #80c7ff;
+      }
+      .primary { color: #24172f; }
+    }
 
     @media (max-width: 560px) {
-      body { padding: 9px; }
-      .header-card, .slide-content, .quiz { padding-left: 16px; padding-right: 16px; }
+      body { padding: 8px; }
+      .header-card, .slide-content, .quiz { padding-left: 15px; padding-right: 15px; }
+      .slide-meta { align-items: flex-start; flex-direction: column; }
+      .dots { justify-content: flex-start; margin-left: -12px; }
       .controls { padding-left: 0; padding-right: 0; }
       button { padding: 10px 14px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
     }
   </style>
 </head>
 <body>
   <main class="app">
-    <div id="empty" class="empty">
-      <div style="font-size:2rem">🦉</div>
-      <div class="brand" style="font-size:1.25rem;margin-top:8px">Ask Lil Owl</div>
-      <p>Your visual lesson will appear here.</p>
+    <div id="empty" class="empty" role="status" aria-live="polite">
+      <strong>Preparing your lesson</strong>
+      <p id="empty-message">ChatGPT is creating your lesson…</p>
     </div>
 
-    <section id="lesson" class="lesson" hidden>
+    <section id="lesson" aria-labelledby="lesson-title" hidden>
       <div class="header-card">
         <div class="top-row">
-          <span class="owl">🦉</span>
-          <span class="brand">Ask Lil Owl</span>
+          <span id="demo-notice" class="demo-notice" hidden>Demo content</span>
           <span id="depth" class="depth"></span>
         </div>
         <div id="topic" class="topic"></div>
         <h1 id="lesson-title"></h1>
         <div id="summary" class="summary"></div>
+        <div id="objectives" class="objectives" hidden></div>
       </div>
 
-      <div class="progress-shell"><div id="progress-fill" class="progress-fill"></div></div>
+      <div id="progress-shell" class="progress-shell" role="progressbar" aria-label="Lesson progress" aria-valuemin="1" aria-valuemax="1" aria-valuenow="1">
+        <div id="progress-fill" class="progress-fill"></div>
+      </div>
 
-      <div class="deck">
-        <div id="visual" class="visual"></div>
+      <article class="deck" aria-labelledby="slide-title">
+        <div id="visual" class="visual" aria-live="polite"></div>
         <div class="slide-content">
           <div class="slide-meta">
             <span id="counter"></span>
-            <div id="dots" class="dots"></div>
+            <nav id="dots" class="dots" aria-label="Lesson slides"></nav>
           </div>
           <h2 id="slide-title"></h2>
           <p id="slide-body" class="body-copy"></p>
           <div id="fun-fact" class="fun-fact" hidden><strong>Fun fact:</strong> <span></span></div>
+          <div id="voice-panel" class="voice-panel" hidden>
+            <div class="voice-actions">
+              <button id="voice-start" class="primary" type="button">▶ Start lesson</button>
+              <button id="voice-toggle" class="secondary" type="button" hidden>Pause</button>
+              <button id="voice-replay" class="secondary" type="button" hidden>Replay</button>
+              <button id="voice-mute" class="secondary" type="button" hidden>Mute</button>
+              <span id="voice-status" class="voice-status" role="status" aria-live="polite"></span>
+            </div>
+            <p id="narration-transcript" class="narration-transcript"></p>
+            <div id="voice-disclosure" class="voice-disclosure"></div>
+            <audio id="lesson-audio" preload="none"></audio>
+          </div>
         </div>
-      </div>
+      </article>
 
       <div class="controls">
         <button id="prev" class="secondary" type="button">← Back</button>
         <button id="next" class="primary" type="button">Next →</button>
       </div>
-      <div class="lesson-footer">Powered by curiosity ✨ Made for curious minds 🦉</div>
     </section>
 
-    <section id="quiz" class="quiz" hidden>
-      <div class="quiz-brand"><span>🦉</span><span>Ask Lil Owl · Quick Quiz</span></div>
+    <section id="quiz" class="quiz" aria-labelledby="quiz-question" hidden>
       <div id="quiz-content">
-        <div id="quiz-meta" class="quiz-meta"></div>
+        <div id="quiz-meta" class="quiz-meta">Quick quiz</div>
         <h2 id="quiz-question"></h2>
         <div id="choices" class="choices"></div>
-        <div id="feedback" class="feedback"></div>
+        <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
         <div class="quiz-actions"><button id="quiz-next" class="primary" type="button" disabled>Next question</button></div>
       </div>
-      <div id="score" class="score" hidden></div>
+      <div id="score" class="score" aria-live="polite" hidden></div>
     </section>
+
+    <details id="sources" class="sources" hidden>
+      <summary>Sources used for this lesson</summary>
+      <ul id="source-list"></ul>
+    </details>
+    <div id="disclosure" class="disclosure" hidden>AI-generated lesson. Verify important information.</div>
   </main>
 
   <script type="module">
     const $ = (selector) => document.querySelector(selector);
+    const STORAGE_KEY = "asklilowl.lesson-progress.v1";
     const emptyEl = $("#empty");
+    const emptyMessageEl = $("#empty-message");
     const lessonEl = $("#lesson");
     const quizEl = $("#quiz");
     const topicEl = $("#topic");
     const titleEl = $("#lesson-title");
     const summaryEl = $("#summary");
+    const objectivesEl = $("#objectives");
+    const demoNoticeEl = $("#demo-notice");
     const depthEl = $("#depth");
     const visualEl = $("#visual");
     const counterEl = $("#counter");
     const dotsEl = $("#dots");
+    const progressEl = $("#progress-shell");
     const progressFillEl = $("#progress-fill");
     const slideTitleEl = $("#slide-title");
     const slideBodyEl = $("#slide-body");
@@ -181,13 +257,91 @@
     const quizNextEl = $("#quiz-next");
     const quizContentEl = $("#quiz-content");
     const scoreEl = $("#score");
+    const sourcesEl = $("#sources");
+    const sourceListEl = $("#source-list");
+    const disclosureEl = $("#disclosure");
+    const voicePanelEl = $("#voice-panel");
+    const voiceStartEl = $("#voice-start");
+    const voiceToggleEl = $("#voice-toggle");
+    const voiceReplayEl = $("#voice-replay");
+    const voiceMuteEl = $("#voice-mute");
+    const voiceStatusEl = $("#voice-status");
+    const narrationTranscriptEl = $("#narration-transcript");
+    const voiceDisclosureEl = $("#voice-disclosure");
+    const audioEl = $("#lesson-audio");
 
     let lesson = null;
     let slideIndex = 0;
     let quizIndex = 0;
     let score = 0;
     let answered = false;
+    let view = "lesson";
     let visualRenderToken = 0;
+    let narratedMode = false;
+
+    const stopNarration = () => {
+      audioEl.pause();
+      audioEl.removeAttribute("src");
+      audioEl.load?.();
+      voiceToggleEl.textContent = "Pause";
+    };
+
+    const playCurrentNarration = async () => {
+      const slide = lesson?.slides?.[slideIndex];
+      if (!slide?.audioUrl) return;
+      narratedMode = true;
+      audioEl.src = slide.audioUrl;
+      voiceStatusEl.textContent = "Loading voice…";
+      voiceStartEl.hidden = true;
+      voiceToggleEl.hidden = false;
+      voiceReplayEl.hidden = false;
+      voiceMuteEl.hidden = false;
+      try {
+        await audioEl.play();
+        voiceStatusEl.textContent = "Playing narration";
+        voiceToggleEl.textContent = "Pause";
+      } catch {
+        voiceStatusEl.textContent = "Voice temporarily unavailable";
+      }
+    };
+
+    const syncVoice = () => {
+      const slide = lesson.slides[slideIndex];
+      const available = Boolean(lesson.voice?.available && slide.audioUrl);
+      voicePanelEl.hidden = !available;
+      narrationTranscriptEl.textContent = slide.narration || "";
+      voiceDisclosureEl.textContent = lesson.voice?.disclosure || "";
+      if (narratedMode && available) playCurrentNarration();
+    };
+
+    const lessonKey = (value) => [value?.topic, value?.title, value?.audience].join("|");
+
+    const readProgress = (value) => {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null");
+        return saved?.lessonKey === lessonKey(value) ? saved : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const saveProgress = () => {
+      if (!lesson) return;
+      try {
+        sessionStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            lessonKey: lessonKey(lesson),
+            view,
+            slideIndex,
+            quizIndex,
+            score,
+          })
+        );
+      } catch {
+        // Storage may be unavailable in a restricted host; the lesson still works.
+      }
+    };
 
     const getSlideImage = (slide) => {
       if (!lesson?.images || typeof slide?.imageIndex !== "number") return null;
@@ -221,7 +375,7 @@
       visualEl.replaceChildren();
       const image = getSlideImage(slide);
       if (!image) {
-        showImageFallback(slide, "Illustration will appear here.");
+        showImageFallback(slide, "No illustration was supplied for this slide.");
         return;
       }
       const loading = document.createElement("div");
@@ -239,33 +393,79 @@
       img.alt = slide.imageAlt || slide.title || "Lesson illustration";
       img.referrerPolicy = "no-referrer";
       img.addEventListener("error", () => {
-        if (token === visualRenderToken) showImageFallback(slide, "The illustration could not be displayed.");
+        if (token === visualRenderToken) {
+          showImageFallback(slide, "The illustration could not be displayed.");
+        }
       });
       visualEl.replaceChildren(img);
     };
 
     const renderDots = () => {
       dotsEl.replaceChildren();
-      lesson.slides.forEach((_, index) => {
+      lesson.slides.forEach((slide, index) => {
         const dot = document.createElement("button");
         dot.type = "button";
         dot.className = `dot${index === slideIndex ? " on" : ""}`;
-        dot.setAttribute("aria-label", `Go to slide ${index + 1}`);
+        dot.setAttribute("aria-label", `Go to slide ${index + 1}: ${slide.title}`);
+        if (index === slideIndex) dot.setAttribute("aria-current", "step");
         dot.addEventListener("click", () => {
           slideIndex = index;
+          view = "lesson";
           renderSlide();
         });
         dotsEl.appendChild(dot);
       });
     };
 
+    const renderLessonDetails = () => {
+      demoNoticeEl.hidden = !lesson.isDemo;
+      objectivesEl.replaceChildren();
+      if (lesson.objectives?.length) {
+        const heading = document.createElement("strong");
+        heading.textContent = "You’ll learn";
+        const list = document.createElement("ul");
+        lesson.objectives.forEach((objective) => {
+          const item = document.createElement("li");
+          item.textContent = objective;
+          list.appendChild(item);
+        });
+        objectivesEl.append(heading, list);
+        objectivesEl.hidden = false;
+      } else {
+        objectivesEl.hidden = true;
+      }
+
+      sourceListEl.replaceChildren();
+      if (lesson.sources?.length) {
+        lesson.sources.forEach((source) => {
+          const item = document.createElement("li");
+          const link = document.createElement("a");
+          link.href = source.url;
+          link.target = "_blank";
+          link.rel = "noreferrer";
+          link.textContent = source.title;
+          item.appendChild(link);
+          sourceListEl.appendChild(item);
+        });
+        sourcesEl.hidden = false;
+      } else {
+        sourcesEl.hidden = true;
+      }
+    };
+
     const renderSlide = () => {
+      view = "lesson";
       const slide = lesson.slides[slideIndex];
+      lessonEl.hidden = false;
+      quizEl.hidden = true;
       topicEl.textContent = lesson.topic || "Curious question";
       titleEl.textContent = lesson.title;
       summaryEl.textContent = lesson.summary || `${lesson.slides.length}-slide lesson for ${lesson.audience}`;
       depthEl.textContent = lesson.depth;
       counterEl.textContent = `Slide ${slideIndex + 1} of ${lesson.slides.length}`;
+      progressEl.setAttribute("aria-valuemax", String(lesson.slides.length));
+      progressEl.setAttribute("aria-valuenow", String(slideIndex + 1));
+      progressEl.setAttribute("aria-valuetext", `Slide ${slideIndex + 1} of ${lesson.slides.length}`);
       progressFillEl.style.width = `${((slideIndex + 1) / lesson.slides.length) * 100}%`;
       slideTitleEl.textContent = slide.title;
       slideBodyEl.textContent = slide.body;
@@ -280,25 +480,22 @@
       renderVisual(slide);
       prevEl.disabled = slideIndex === 0;
       nextEl.textContent = slideIndex === lesson.slides.length - 1 ? "Try the quiz →" : "Next →";
+      syncVoice();
+      saveProgress();
     };
 
-    const startQuiz = () => {
+    const renderQuizQuestion = () => {
+      view = "quiz";
+      const item = lesson.quiz[quizIndex];
       lessonEl.hidden = true;
       quizEl.hidden = false;
       quizContentEl.hidden = false;
       scoreEl.hidden = true;
-      quizIndex = 0;
-      score = 0;
-      renderQuizQuestion();
-    };
-
-    const renderQuizQuestion = () => {
-      const item = lesson.quiz[quizIndex];
       answered = false;
       feedbackEl.textContent = "";
       quizNextEl.disabled = true;
       quizNextEl.textContent = quizIndex === lesson.quiz.length - 1 ? "See my score" : "Next question";
-      quizMetaEl.textContent = `Question ${quizIndex + 1} of ${lesson.quiz.length}`;
+      quizMetaEl.textContent = `Quick quiz · Question ${quizIndex + 1} of ${lesson.quiz.length}`;
       quizQuestionEl.textContent = item.question;
       choicesEl.replaceChildren();
       item.choices.forEach((choiceText, choiceIndex) => {
@@ -309,6 +506,15 @@
         button.addEventListener("click", () => answerQuestion(choiceIndex));
         choicesEl.appendChild(button);
       });
+      saveProgress();
+    };
+
+    const startQuiz = () => {
+      stopNarration();
+      narratedMode = false;
+      quizIndex = 0;
+      score = 0;
+      renderQuizQuestion();
     };
 
     const answerQuestion = (selectedIndex) => {
@@ -323,23 +529,28 @@
         if (index === item.answerIndex) button.classList.add("correct");
         if (index === selectedIndex && !correct) button.classList.add("wrong");
       });
-      feedbackEl.textContent = `${correct ? "Correct! 🎉" : "Not quite."}${item.explanation ? ` ${item.explanation}` : ""}`;
+      feedbackEl.textContent = `${correct ? "Correct!" : "Not quite."}${item.explanation ? ` ${item.explanation}` : ""}`;
       quizNextEl.disabled = false;
+      saveProgress();
     };
 
     const finishQuiz = () => {
+      view = "score";
+      lessonEl.hidden = true;
+      quizEl.hidden = false;
       quizContentEl.hidden = true;
       scoreEl.hidden = false;
       scoreEl.replaceChildren();
       const trophy = document.createElement("div");
       trophy.className = "trophy";
+      trophy.setAttribute("aria-hidden", "true");
       trophy.textContent = score === lesson.quiz.length ? "🏆" : "🌟";
       const heading = document.createElement("div");
       heading.textContent = "Lesson complete!";
       const result = document.createElement("strong");
       result.textContent = `${score} / ${lesson.quiz.length}`;
       const note = document.createElement("div");
-      note.textContent = score === lesson.quiz.length ? "Amazing — perfect score!" : "Nice work. Review the lesson and try again whenever you want.";
+      note.textContent = score === lesson.quiz.length ? "Perfect score!" : "Review the lesson and try again whenever you want.";
       const review = document.createElement("button");
       review.type = "button";
       review.className = "secondary";
@@ -347,11 +558,10 @@
       review.textContent = "← Review lesson";
       review.addEventListener("click", () => {
         slideIndex = 0;
-        quizEl.hidden = true;
-        lessonEl.hidden = false;
         renderSlide();
       });
       scoreEl.append(trophy, heading, result, note, review);
+      saveProgress();
     };
 
     prevEl.addEventListener("click", () => {
@@ -377,18 +587,56 @@
         finishQuiz();
       }
     });
+    voiceStartEl.addEventListener("click", playCurrentNarration);
+    voiceToggleEl.addEventListener("click", async () => {
+      if (audioEl.paused) await playCurrentNarration();
+      else { audioEl.pause(); voiceToggleEl.textContent = "Resume"; voiceStatusEl.textContent = "Narration paused"; }
+    });
+    voiceReplayEl.addEventListener("click", () => { audioEl.currentTime = 0; playCurrentNarration(); });
+    voiceMuteEl.addEventListener("click", () => { audioEl.muted = !audioEl.muted; voiceMuteEl.textContent = audioEl.muted ? "Unmute" : "Mute"; });
+    audioEl.addEventListener("ended", () => {
+      if (slideIndex < lesson.slides.length - 1) { slideIndex += 1; renderSlide(); }
+      else startQuiz();
+    });
+    audioEl.addEventListener("error", () => { voiceStatusEl.textContent = "Voice temporarily unavailable"; });
+
+    const showErrorState = (message) => {
+      lesson = null;
+      lessonEl.hidden = true;
+      quizEl.hidden = true;
+      sourcesEl.hidden = true;
+      disclosureEl.hidden = true;
+      emptyEl.hidden = false;
+      emptyEl.classList.add("error");
+      emptyMessageEl.textContent = message || "The lesson could not be opened. Please try again.";
+    };
 
     const updateFromResponse = (response) => {
+      if (response?.isError) {
+        const errorText = response.content?.find((item) => item.type === "text")?.text;
+        showErrorState(errorText);
+        return;
+      }
       const nextLesson = response?.structuredContent?.lesson;
-      if (!nextLesson?.slides?.length) return;
+      if (!nextLesson?.slides?.length || !nextLesson?.quiz?.length) {
+        showErrorState("The lesson was incomplete. Please ask ChatGPT to create it again.");
+        return;
+      }
+
+      const saved = readProgress(nextLesson);
       lesson = nextLesson;
-      slideIndex = 0;
-      quizIndex = 0;
-      score = 0;
+      slideIndex = Math.min(Math.max(saved?.slideIndex ?? 0, 0), lesson.slides.length - 1);
+      quizIndex = Math.min(Math.max(saved?.quizIndex ?? 0, 0), lesson.quiz.length - 1);
+      score = Math.min(Math.max(saved?.score ?? 0, 0), lesson.quiz.length);
+      view = ["lesson", "quiz", "score"].includes(saved?.view) ? saved.view : "lesson";
+      emptyEl.classList.remove("error");
       emptyEl.hidden = true;
-      quizEl.hidden = true;
-      lessonEl.hidden = false;
-      renderSlide();
+      disclosureEl.hidden = false;
+      renderLessonDetails();
+
+      if (view === "quiz") renderQuizQuestion();
+      else if (view === "score") finishQuiz();
+      else renderSlide();
     };
 
     let rpcId = 0;
@@ -418,7 +666,7 @@
     const initializeBridge = async () => {
       try {
         await rpcRequest("ui/initialize", {
-          appInfo: { name: "asklilowl-lesson-widget", version: "0.2.0" },
+          appInfo: { name: "asklilowl-lesson-widget", version: "0.3.0" },
           appCapabilities: {},
           protocolVersion: "2026-01-26",
         });
