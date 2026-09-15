@@ -25,12 +25,14 @@ test("speech service rejects expired tokens", () => {
   assert.throws(() => service.verifyToken(token), /expired/);
 });
 
-test("speech provider request uses the configured model, female voice, and no client credential", async () => {
+test("speech provider request uses Nova at a gentle pace and no client credential", async () => {
   let captured;
   const service = createSpeechService({
     apiKey: "secret-key",
     tokenSecret: "c".repeat(32),
     publicOrigin: "https://lesson.example",
+    voice: "nova",
+    speed: 0.9,
     fetchImpl: async (url, options) => {
       captured = { url, options };
       return new Response(new Uint8Array([0x49, 0x44, 0x33, 1]), { status: 200, headers: { "content-type": "audio/mpeg" } });
@@ -42,9 +44,10 @@ test("speech provider request uses the configured model, female voice, and no cl
   assert.equal(captured.options.headers.Authorization, "Bearer secret-key");
   assert.deepEqual(JSON.parse(captured.options.body), {
     model: "gpt-4o-mini-tts",
-    voice: "marin",
+    voice: "nova",
     input: "Leaves capture sunlight.",
     instructions: "Speak warmly, clearly, and encouragingly, with age-appropriate pacing and careful pronunciation for an educational lesson.",
     response_format: "mp3",
+    speed: 0.9,
   });
 });

@@ -146,7 +146,7 @@ test("widget plays one lesson track and changes slides at its cue times", async 
   let playCalls = 0;
   dom.window.HTMLMediaElement.prototype.play = async function () { playCalls += 1; };
   await deliver(dom, lessonResult({
-    voice: { available: true, provider: "openai", model: "gpt-4o-mini-tts", voice: "marin", disclosure: "AI-generated voice." },
+    voice: { available: true, provider: "openai", model: "gpt-4o-mini-tts", voice: "nova", disclosure: "AI-generated voice." },
     audioUrl: "https://lesson.example/api/speech/whole-lesson",
     slides: [
       { id: "one", number: 1, title: "Light", body: "Leaves capture light.", narration: "Leaves capture light.", audioCueSeconds: 0, imageIndex: null },

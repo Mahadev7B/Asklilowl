@@ -11,12 +11,16 @@ export function createSpeechService({
   tokenSecret = process.env.VOICE_TOKEN_SECRET,
   publicOrigin = process.env.PUBLIC_ORIGIN ?? "https://asklilowl-chatgpt.onrender.com",
   model = process.env.OPENAI_TTS_MODEL ?? "gpt-4o-mini-tts",
-  voice = process.env.OPENAI_TTS_VOICE ?? "marin",
+  voice = process.env.OPENAI_TTS_VOICE ?? "nova",
+  speed = Number(process.env.OPENAI_TTS_SPEED ?? 0.9),
   instructions = process.env.OPENAI_TTS_INSTRUCTIONS ?? DEFAULT_INSTRUCTIONS,
   tokenTtlSeconds = Number(process.env.VOICE_TOKEN_TTL_SECONDS ?? 86_400),
   now = Date.now,
   fetchImpl = fetch,
 } = {}) {
+  if (!Number.isFinite(speed) || speed < 0.25 || speed > 4) {
+    throw new RangeError("OPENAI_TTS_SPEED must be between 0.25 and 4.");
+  }
   const enabled = Boolean(apiKey && tokenSecret && tokenSecret.length >= 32);
   const metadata = () => enabled
     ? { available: true, provider: "openai", model, voice, disclosure: "AI-generated voice." }
@@ -48,7 +52,7 @@ export function createSpeechService({
 
   function createAudioUrl({ narration, audience }) {
     if (!enabled) return null;
-    const token = sign({ v: 1, expiresAt: now() + tokenTtlSeconds * 1_000, narration, audience, model, voice, instructions, format: "mp3" });
+    const token = sign({ v: 1, expiresAt: now() + tokenTtlSeconds * 1_000, narration, audience, model, voice, speed, instructions, format: "mp3" });
     return `${publicOrigin.replace(/\/+$/, "")}/api/speech/${token}`;
   }
 
@@ -56,7 +60,7 @@ export function createSpeechService({
     const response = await fetchImpl("https://api.openai.com/v1/audio/speech", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ model: payload.model ?? model, voice: payload.voice ?? voice, input: payload.narration, instructions: payload.instructions ?? instructions, response_format: "mp3" }),
+      body: JSON.stringify({ model: payload.model ?? model, voice: payload.voice ?? voice, input: payload.narration, instructions: payload.instructions ?? instructions, response_format: "mp3", speed: payload.speed ?? speed }),
       signal,
     });
     if (!response.ok) throw new Error(response.status === 429 ? "Voice quota unavailable" : "Voice provider unavailable");

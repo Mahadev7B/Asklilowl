@@ -108,7 +108,7 @@ export function createAskLilOwlServer({
         "Use the minimum number of slides needed for a clear explanation and create an age/skill-appropriate quiz. " +
         "When native ChatGPT image generation is available, generate useful educational illustrations before calling this tool and pass those ChatGPT-managed image files in the images parameter. " +
         "Prefer images that directly teach the slide concept rather than decorative pictures. Each slide can point to one image with imageIndex. " +
-        "Write concise narration for every slide, matching the visible content and learner level. Keep the combined narration at or below 4,096 characters: AskLilOwl securely generates one continuous voice track after the learner starts playback. Do not call another language model or image provider from this tool.",
+        "Write each slide body as a concise, age-appropriate explanation. AskLilOwl narrates that visible body verbatim. Keep the combined slide bodies at or below 4,096 characters: AskLilOwl securely generates one continuous voice track after the learner starts playback. Do not call another language model or image provider from this tool.",
       inputSchema: lessonInputShape,
       outputSchema: lessonOutputShape,
       annotations: {

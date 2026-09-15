@@ -57,7 +57,7 @@ export function buildLesson(args, { isDemo = false, speechService = null } = {})
   const images = normalizeImages(args.images);
   let cueSeconds = 0;
   const slides = args.slides.map((slide, index) => {
-    const narration = slide.narration?.trim() || [slide.title, slide.body, slide.funFact ? `Fun fact: ${slide.funFact}` : ""].filter(Boolean).join(". ");
+    const narration = slide.body;
     const renderedSlide = {
       ...slide,
       narration,
