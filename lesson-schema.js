@@ -14,6 +14,7 @@ export const INPUT_LIMITS = Object.freeze({
   funFact: 600,
   imageAlt: 300,
   narration: 2_000,
+  lessonNarration: 4_096,
   quiz: 10,
   quizQuestion: 500,
   quizChoice: 240,
@@ -186,7 +187,7 @@ const renderedSlideSchema = slideSchema.extend({
   number: z.number().int().positive(),
   imageIndex: z.number().int().nonnegative().nullable(),
   narration: z.string().min(1).max(INPUT_LIMITS.narration),
-  audioUrl: httpUrlSchema.nullable(),
+  audioCueSeconds: z.number().nonnegative(),
 });
 
 const voiceSchema = z.object({
@@ -206,6 +207,8 @@ export const lessonOutputSchema = z.object({
   objectives: z.array(z.string().min(1).max(INPUT_LIMITS.objective)).max(INPUT_LIMITS.objectives),
   slideCount: z.number().int().min(3).max(INPUT_LIMITS.slides),
   slides: z.array(renderedSlideSchema).min(3).max(INPUT_LIMITS.slides),
+  audioUrl: httpUrlSchema.nullable(),
+  narrationDurationEstimateSeconds: z.number().nonnegative(),
   quiz: z.array(quizQuestionSchema).min(1).max(INPUT_LIMITS.quiz),
   sources: z.array(sourceSchema).max(INPUT_LIMITS.sources),
   images: z.array(normalizedImageSchema).max(INPUT_LIMITS.images),

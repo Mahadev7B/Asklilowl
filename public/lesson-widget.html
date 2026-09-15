@@ -286,11 +286,13 @@
       voiceToggleEl.textContent = "Pause";
     };
 
-    const playCurrentNarration = async () => {
-      const slide = lesson?.slides?.[slideIndex];
-      if (!slide?.audioUrl) return;
+    const currentCueSeconds = () => Number(lesson?.slides?.[slideIndex]?.audioCueSeconds ?? 0);
+
+    const playLessonNarration = async ({ seekToCurrentSlide = false } = {}) => {
+      if (!lesson?.audioUrl) return;
       narratedMode = true;
-      audioEl.src = slide.audioUrl;
+      if (audioEl.src !== lesson.audioUrl) audioEl.src = lesson.audioUrl;
+      if (seekToCurrentSlide) audioEl.currentTime = currentCueSeconds();
       voiceStatusEl.textContent = "Loading voice…";
       voiceStartEl.hidden = true;
       voiceToggleEl.hidden = false;
@@ -307,11 +309,10 @@
 
     const syncVoice = () => {
       const slide = lesson.slides[slideIndex];
-      const available = Boolean(lesson.voice?.available && slide.audioUrl);
+      const available = Boolean(lesson.voice?.available && lesson.audioUrl);
       voicePanelEl.hidden = !available;
       narrationTranscriptEl.textContent = slide.narration || "";
       voiceDisclosureEl.textContent = lesson.voice?.disclosure || "";
-      if (narratedMode && available) playCurrentNarration();
     };
 
     const lessonKey = (value) => [value?.topic, value?.title, value?.audience].join("|");
@@ -453,7 +454,7 @@
       }
     };
 
-    const renderSlide = () => {
+    const renderSlide = ({ synchronizeAudio = true } = {}) => {
       view = "lesson";
       const slide = lesson.slides[slideIndex];
       lessonEl.hidden = false;
@@ -481,6 +482,9 @@
       prevEl.disabled = slideIndex === 0;
       nextEl.textContent = slideIndex === lesson.slides.length - 1 ? "Try the quiz →" : "Next →";
       syncVoice();
+      if (narratedMode && synchronizeAudio && lesson.audioUrl) {
+        audioEl.currentTime = currentCueSeconds();
+      }
       saveProgress();
     };
 
@@ -587,17 +591,29 @@
         finishQuiz();
       }
     });
-    voiceStartEl.addEventListener("click", playCurrentNarration);
+    voiceStartEl.addEventListener("click", () => {
+      slideIndex = 0;
+      renderSlide();
+      playLessonNarration({ seekToCurrentSlide: true });
+    });
     voiceToggleEl.addEventListener("click", async () => {
-      if (audioEl.paused) await playCurrentNarration();
+      if (audioEl.paused) await playLessonNarration();
       else { audioEl.pause(); voiceToggleEl.textContent = "Resume"; voiceStatusEl.textContent = "Narration paused"; }
     });
-    voiceReplayEl.addEventListener("click", () => { audioEl.currentTime = 0; playCurrentNarration(); });
+    voiceReplayEl.addEventListener("click", () => playLessonNarration({ seekToCurrentSlide: true }));
     voiceMuteEl.addEventListener("click", () => { audioEl.muted = !audioEl.muted; voiceMuteEl.textContent = audioEl.muted ? "Unmute" : "Mute"; });
-    audioEl.addEventListener("ended", () => {
-      if (slideIndex < lesson.slides.length - 1) { slideIndex += 1; renderSlide(); }
-      else startQuiz();
+    audioEl.addEventListener("timeupdate", () => {
+      if (!lesson || !narratedMode) return;
+      const nextIndex = lesson.slides.reduce(
+        (activeIndex, slide, index) => audioEl.currentTime >= Number(slide.audioCueSeconds ?? 0) ? index : activeIndex,
+        0
+      );
+      if (nextIndex !== slideIndex) {
+        slideIndex = nextIndex;
+        renderSlide({ synchronizeAudio: false });
+      }
     });
+    audioEl.addEventListener("ended", () => startQuiz());
     audioEl.addEventListener("error", () => { voiceStatusEl.textContent = "Voice temporarily unavailable"; });
 
     const showErrorState = (message) => {
@@ -624,6 +640,8 @@
       }
 
       const saved = readProgress(nextLesson);
+      stopNarration();
+      narratedMode = false;
       lesson = nextLesson;
       slideIndex = Math.min(Math.max(saved?.slideIndex ?? 0, 0), lesson.slides.length - 1);
       quizIndex = Math.min(Math.max(saved?.quizIndex ?? 0, 0), lesson.quiz.length - 1);

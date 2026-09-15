@@ -38,6 +38,11 @@ export function normalizeImages(input) {
 
 const disabledVoice = { available: false, provider: null, model: null, voice: null, disclosure: "" };
 
+function estimateNarrationSeconds(narration) {
+  const wordCount = narration.trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(4, Math.ceil(wordCount / 2.5) + 1);
+}
+
 export function buildLesson(args, { isDemo = false, speechService = null } = {}) {
   const invalidQuiz = args.quiz.find(
     (item) => item.answerIndex < 0 || item.answerIndex >= item.choices.length
@@ -50,19 +55,28 @@ export function buildLesson(args, { isDemo = false, speechService = null } = {})
   }
 
   const images = normalizeImages(args.images);
+  let cueSeconds = 0;
   const slides = args.slides.map((slide, index) => {
     const narration = slide.narration?.trim() || [slide.title, slide.body, slide.funFact ? `Fun fact: ${slide.funFact}` : ""].filter(Boolean).join(". ");
-    return {
-    ...slide, narration,
-    audioUrl: speechService?.enabled ? speechService.createAudioUrl({ narration, audience: args.audience }) : null,
-    number: index + 1,
-    imageIndex:
-      typeof slide.imageIndex === "number" && slide.imageIndex < images.length
-        ? slide.imageIndex
-        : images[index]
-          ? index
-          : null,
-  }});
+    const renderedSlide = {
+      ...slide,
+      narration,
+      audioCueSeconds: cueSeconds,
+      number: index + 1,
+      imageIndex:
+        typeof slide.imageIndex === "number" && slide.imageIndex < images.length
+          ? slide.imageIndex
+          : images[index]
+            ? index
+            : null,
+    };
+    cueSeconds += estimateNarrationSeconds(narration);
+    return renderedSlide;
+  });
+  const lessonNarration = slides.map((slide) => slide.narration).join("\n\n");
+  if (lessonNarration.length > 4_096) {
+    throw new RangeError("Lesson narration is too long for one voice track. Please use fewer slides or make each narration more concise.");
+  }
 
   return lessonOutputSchema.parse({
     topic: args.topic,
@@ -73,6 +87,8 @@ export function buildLesson(args, { isDemo = false, speechService = null } = {})
     objectives: args.objectives ?? [],
     slideCount: slides.length,
     slides,
+    audioUrl: speechService?.enabled ? speechService.createAudioUrl({ narration: lessonNarration, audience: args.audience }) : null,
+    narrationDurationEstimateSeconds: cueSeconds,
     quiz: args.quiz,
     sources: args.sources ?? [],
     images,

@@ -37,7 +37,7 @@ export function createSpeechService({
       if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) throw new Error();
       const inflated = inflateRawSync(decode(body), { maxOutputLength: 8_192 });
       const payload = JSON.parse(inflated.toString("utf8"));
-      if (payload.v !== 1 || typeof payload.narration !== "string" || payload.narration.length > 2_000) throw new Error();
+      if (payload.v !== 1 || typeof payload.narration !== "string" || payload.narration.length > 4_096) throw new Error();
       if (payload.expiresAt <= now()) throw new RangeError("Voice token expired");
       return payload;
     } catch (error) {

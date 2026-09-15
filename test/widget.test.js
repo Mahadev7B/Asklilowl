@@ -140,17 +140,18 @@ test("widget follows host styling and identity guidance", async (t) => {
   assert.match(html, /@media \(max-width: 560px\)/);
 });
 
-test("widget starts AI narration and advances when the current slide ends", async (t) => {
+test("widget plays one lesson track and changes slides at its cue times", async (t) => {
   const { dom } = await loadWidget();
   t.after(() => dom.window.close());
   let playCalls = 0;
   dom.window.HTMLMediaElement.prototype.play = async function () { playCalls += 1; };
   await deliver(dom, lessonResult({
     voice: { available: true, provider: "openai", model: "gpt-4o-mini-tts", voice: "marin", disclosure: "AI-generated voice." },
+    audioUrl: "https://lesson.example/api/speech/whole-lesson",
     slides: [
-      { id: "one", number: 1, title: "Light", body: "Leaves capture light.", narration: "Leaves capture light.", audioUrl: "https://lesson.example/api/speech/one", imageIndex: null },
-      { id: "two", number: 2, title: "Water", body: "Roots absorb water.", narration: "Roots absorb water.", audioUrl: "https://lesson.example/api/speech/two", imageIndex: null },
-      { id: "three", number: 3, title: "Sugar", body: "Plants make sugar.", narration: "Plants make sugar.", audioUrl: "https://lesson.example/api/speech/three", imageIndex: null },
+      { id: "one", number: 1, title: "Light", body: "Leaves capture light.", narration: "Leaves capture light.", audioCueSeconds: 0, imageIndex: null },
+      { id: "two", number: 2, title: "Water", body: "Roots absorb water.", narration: "Roots absorb water.", audioCueSeconds: 4, imageIndex: null },
+      { id: "three", number: 3, title: "Sugar", body: "Plants make sugar.", narration: "Plants make sugar.", audioCueSeconds: 8, imageIndex: null },
     ],
   }));
   const document = dom.window.document;
@@ -160,10 +161,14 @@ test("widget starts AI narration and advances when the current slide ends", asyn
   await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
   assert.equal(playCalls, 1);
   const audio = document.querySelector("#lesson-audio");
-  assert.equal(audio.src, "https://lesson.example/api/speech/one");
-  audio.dispatchEvent(new dom.window.Event("ended"));
+  assert.equal(audio.src, "https://lesson.example/api/speech/whole-lesson");
+  Object.defineProperty(audio, "currentTime", { configurable: true, value: 4 });
+  audio.dispatchEvent(new dom.window.Event("timeupdate"));
   await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
   assert.equal(document.querySelector("#counter").textContent, "Slide 2 of 3");
-  assert.equal(playCalls, 2);
+  audio.dispatchEvent(new dom.window.Event("ended"));
+  await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
+  assert.equal(document.querySelector("#quiz").hidden, false);
+  assert.equal(playCalls, 1);
   assert.match(document.querySelector("#voice-disclosure").textContent, /AI-generated voice/);
 });

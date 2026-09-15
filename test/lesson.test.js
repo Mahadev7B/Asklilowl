@@ -99,7 +99,7 @@ test("buildLesson rejects a quiz answer outside the choices array", () => {
   );
 });
 
-test("buildLesson derives narration and exposes signed voice metadata", () => {
+test("buildLesson creates one signed narration track and slide-level cue times", () => {
   const speechService = createSpeechService({ apiKey: "test", tokenSecret: "d".repeat(32), publicOrigin: "https://lesson.example" });
   const lesson = buildLesson({
     topic: "Photosynthesis", title: "How Plants Make Food", audience: "middle school", depth: "standard",
@@ -112,6 +112,9 @@ test("buildLesson derives narration and exposes signed voice metadata", () => {
   }, { speechService });
   assert.equal(lesson.slides[0].narration, "Light. Leaves capture sunlight.");
   assert.equal(lesson.slides[1].narration, "Plants gather two important ingredients.");
-  assert.match(lesson.slides[0].audioUrl, /^https:\/\/lesson\.example\/api\/speech\//);
+  assert.match(lesson.audioUrl, /^https:\/\/lesson\.example\/api\/speech\//);
+  assert.equal(lesson.slides[0].audioCueSeconds, 0);
+  assert.ok(lesson.slides[1].audioCueSeconds > lesson.slides[0].audioCueSeconds);
+  assert.equal("audioUrl" in lesson.slides[0], false);
   assert.deepEqual(lesson.voice, { available: true, provider: "openai", model: "gpt-4o-mini-tts", voice: "marin", disclosure: "AI-generated voice." });
 });
