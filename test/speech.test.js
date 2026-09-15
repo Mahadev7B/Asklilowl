@@ -14,7 +14,8 @@ test("speech service signs exact narration and rejects altered tokens", () => {
   assert.equal(url.origin, "https://lesson.example");
   const token = url.pathname.split("/").pop();
   assert.equal(service.verifyToken(token).narration, "Plants turn light into stored energy.");
-  assert.throws(() => service.verifyToken(`${token.slice(0, -1)}x`), /Invalid voice token/);
+  const alteredToken = `${token[0] === "x" ? "y" : "x"}${token.slice(1)}`;
+  assert.throws(() => service.verifyToken(alteredToken), /Invalid voice token/);
 });
 
 test("speech service rejects expired tokens", () => {
@@ -46,7 +47,7 @@ test("speech provider request uses Nova at a gentle pace and no client credentia
     model: "gpt-4o-mini-tts",
     voice: "nova",
     input: "Leaves capture sunlight.",
-    instructions: "Speak warmly, clearly, and encouragingly, with age-appropriate pacing and careful pronunciation for an educational lesson.",
+    instructions: "Speak like a friendly, playful, reassuring teacher for children. Sound natural and conversational, with gentle enthusiasm and a little sense of wonder. Use a warm, welcoming tone and relaxed pacing. Add brief natural pauses after discoveries. Never sound formal, stern, rushed, dramatic, or like an announcer. Pronounce educational words clearly without overemphasis.",
     response_format: "mp3",
     speed: 0.9,
   });

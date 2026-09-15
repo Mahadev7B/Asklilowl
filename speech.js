@@ -1,7 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { deflateRawSync, inflateRawSync } from "node:zlib";
 
-const DEFAULT_INSTRUCTIONS = "Speak warmly, clearly, and encouragingly, with age-appropriate pacing and careful pronunciation for an educational lesson.";
+const DEFAULT_INSTRUCTIONS = "Speak like a friendly, playful, reassuring teacher for children. Sound natural and conversational, with gentle enthusiasm and a little sense of wonder. Use a warm, welcoming tone and relaxed pacing. Add brief natural pauses after discoveries. Never sound formal, stern, rushed, dramatic, or like an announcer. Pronounce educational words clearly without overemphasis.";
 
 const encode = (value) => Buffer.from(value).toString("base64url");
 const decode = (value) => Buffer.from(value, "base64url");
