@@ -136,6 +136,15 @@ test("the Inspector bird asset is isolated from production", async (t) => {
   assert.equal((await fetch(`${demo.origin}/test-bird.svg`)).status, 200);
 });
 
+test("production serves the generated photosynthesis lesson illustration", async (t) => {
+  const { server, origin } = await startServer({ demoMode: false });
+  t.after(() => stopServer(server));
+  const response = await fetch(`${origin}/photosynthesis-infographic.png`);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "image/png");
+  assert.ok((await response.arrayBuffer()).byteLength > 100_000);
+});
+
 test("production MCP returns schema-conformant lessons and actionable quiz errors", async (t) => {
   const { server, origin } = await startServer({ demoMode: false });
   const client = new Client({ name: "asklilowl-call-test", version: "1.0.0" });

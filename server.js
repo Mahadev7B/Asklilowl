@@ -31,6 +31,9 @@ const lessonHtml = readFileSync(
   path.join(__dirname, "public", "lesson-widget.html"),
   "utf8"
 );
+const photosynthesisInfographic = readFileSync(
+  path.join(__dirname, "public", "photosynthesis-infographic.png")
+);
 
 const publicPages = new Map(
   ["about", "privacy", "terms", "support"].map((name) => [
@@ -303,6 +306,15 @@ export function createAskLilOwlHttpServer({
     if (request.method === "GET" && publicPages.has(url.pathname)) {
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       response.end(publicPages.get(url.pathname));
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/photosynthesis-infographic.png") {
+      response.writeHead(200, {
+        "content-type": "image/png",
+        "cache-control": "public, max-age=31536000, immutable",
+      });
+      response.end(photosynthesisInfographic);
       return;
     }
 
