@@ -117,6 +117,24 @@ test("widget quiz announces feedback and supports lesson review", async (t) => {
   assert.match(document.querySelector("#score").textContent, /1 \/ 1/);
 });
 
+test("widget lets a learner replay slides directly from the quiz", async (t) => {
+  const { dom } = await loadWidget();
+  t.after(() => dom.window.close());
+  await deliver(dom, lessonResult());
+  const document = dom.window.document;
+
+  document.querySelectorAll(".dot")[2].click();
+  document.querySelector("#next").click();
+  assert.equal(document.querySelector("#quiz").hidden, false);
+
+  document.querySelector("#review-lesson").click();
+  assert.equal(document.querySelector("#lesson").hidden, false);
+  assert.equal(document.querySelector("#counter").textContent, "Slide 1 of 3");
+
+  await deliver(dom, lessonResult());
+  assert.equal(document.querySelector("#counter").textContent, "Slide 1 of 3");
+});
+
 test("widget reports tool failures and incomplete results", async (t) => {
   const { dom } = await loadWidget();
   t.after(() => dom.window.close());

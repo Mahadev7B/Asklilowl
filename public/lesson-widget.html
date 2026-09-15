@@ -215,7 +215,10 @@
         <h2 id="quiz-question"></h2>
         <div id="choices" class="choices"></div>
         <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
-        <div class="quiz-actions"><button id="quiz-next" class="primary" type="button" disabled>Next question</button></div>
+        <div class="quiz-actions">
+          <button id="review-lesson" class="secondary" type="button">← Replay lesson</button>
+          <button id="quiz-next" class="primary" type="button" disabled>Next question</button>
+        </div>
       </div>
       <div id="score" class="score" aria-live="polite" hidden></div>
     </section>
@@ -255,6 +258,7 @@
     const choicesEl = $("#choices");
     const feedbackEl = $("#feedback");
     const quizNextEl = $("#quiz-next");
+    const reviewLessonEl = $("#review-lesson");
     const quizContentEl = $("#quiz-content");
     const scoreEl = $("#score");
     const sourcesEl = $("#sources");
@@ -590,6 +594,15 @@
       } else {
         finishQuiz();
       }
+    });
+    reviewLessonEl.addEventListener("click", () => {
+      stopNarration();
+      narratedMode = false;
+      slideIndex = 0;
+      quizIndex = 0;
+      score = 0;
+      answered = false;
+      renderSlide();
     });
     voiceStartEl.addEventListener("click", () => {
       slideIndex = 0;
