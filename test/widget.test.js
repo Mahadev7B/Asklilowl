@@ -37,7 +37,7 @@ function lessonResult(overrides = {}) {
   return { structuredContent: { lesson } };
 }
 
-async function loadWidget() {
+async function loadWidget({ openai } = {}) {
   const html = await readFile(widgetPath, "utf8");
   const dom = new JSDOM(html, {
     runScripts: "outside-only",
@@ -47,11 +47,24 @@ async function loadWidget() {
   dom.window.HTMLMediaElement.prototype.pause = function () {};
   dom.window.HTMLMediaElement.prototype.load = function () {};
   dom.window.HTMLMediaElement.prototype.play = async function () {};
+  dom.window.openai = openai;
   const script = dom.window.document.querySelector("script[type=module]").textContent;
   dom.window.eval(script);
   await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
   return { dom, html };
 }
+
+test("widget reports its height after rendering a lesson", async (t) => {
+  const heights = [];
+  const { dom } = await loadWidget({
+    openai: { notifyIntrinsicHeight: (height) => heights.push(height) },
+  });
+  t.after(() => dom.window.close());
+
+  await deliver(dom, lessonResult());
+
+  assert.ok(heights.length > 0);
+});
 
 async function deliver(dom, response) {
   dom.window.dispatchEvent(

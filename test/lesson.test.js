@@ -2,7 +2,46 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildLesson } from "../lesson.js";
+import { lessonInputSchema } from "../lesson-schema.js";
 import { createSpeechService } from "../speech.js";
+
+const validLessonInput = {
+  topic: "How do birds fly?",
+  title: "Bird Flight",
+  audience: "young learner",
+  depth: "quick",
+  slides: [
+    { id: "one", title: "Wings", body: "Wings push air." },
+    { id: "two", title: "Lift", body: "Lift pushes up." },
+    { id: "three", title: "Steering", body: "Tails steer." },
+  ],
+  quiz: [{ question: "What helps a bird steer?", choices: ["Tail feathers", "Its beak"], answerIndex: 0 }],
+};
+
+test("lesson input requires ChatGPT file objects for image parameters", () => {
+  const result = lessonInputSchema.safeParse({
+    ...validLessonInput,
+    images: "file_00000000b37081fb95d0eac47eda06ce",
+  });
+
+  assert.equal(result.success, false);
+});
+
+test("lesson input accepts an array of fully described ChatGPT image files", () => {
+  const result = lessonInputSchema.safeParse({
+    ...validLessonInput,
+    images: [
+      {
+        file_id: "file_00000000b37081fb95d0eac47eda06ce",
+        download_url: "https://files.example/rainbow.png",
+        mime_type: "image/png",
+        file_name: "rainbow.png",
+      },
+    ],
+  });
+
+  assert.equal(result.success, true);
+});
 
 test("buildLesson preserves production lesson context and maps images to slides", () => {
   const lesson = buildLesson({

@@ -32,7 +32,12 @@ function validInput() {
     sources: [
       { title: "Bird flight reference", url: "https://example.org/birds" },
     ],
-    images: [{ file_id: "file_bird", file_name: "bird.png" }],
+    images: [{
+      file_id: "file_bird",
+      download_url: "https://files.example/bird.png",
+      file_name: "bird.png",
+      mime_type: "image/png",
+    }],
   };
 }
 
@@ -57,7 +62,10 @@ test("lesson input rejects oversized fields and arrays", () => {
   const tooManyImages = validInput();
   tooManyImages.images = Array.from(
     { length: INPUT_LIMITS.images + 1 },
-    (_, index) => ({ file_id: `file_${index}` })
+    (_, index) => ({
+      file_id: `file_${index}`,
+      download_url: `https://files.example/${index}.png`,
+    })
   );
   assert.equal(lessonInputSchema.safeParse(tooManyImages).success, false);
 });
@@ -71,7 +79,7 @@ test("source links must use HTTP or HTTPS", () => {
   assert.equal(lessonInputSchema.safeParse(input).success, false);
 });
 
-test("image strings must be ChatGPT file ids or HTTP(S) URLs", () => {
+test("image inputs must be fully described ChatGPT file objects", () => {
   const unsafe = validInput();
   unsafe.images = "javascript:alert(1)";
   assert.equal(lessonInputSchema.safeParse(unsafe).success, false);
@@ -82,7 +90,11 @@ test("image strings must be ChatGPT file ids or HTTP(S) URLs", () => {
 
   const file = validInput();
   file.images = "file_abc123";
-  assert.equal(lessonInputSchema.safeParse(file).success, true);
+  assert.equal(lessonInputSchema.safeParse(file).success, false);
+
+  const missingDownloadUrl = validInput();
+  missingDownloadUrl.images = [{ file_id: "file_abc123" }];
+  assert.equal(lessonInputSchema.safeParse(missingDownloadUrl).success, false);
 });
 
 test("quiz answer indices are validated against each choices array", () => {

@@ -69,55 +69,14 @@ export const sourceSchema = z.object({
 
 const imageObjectSchema = z
   .object({
-    file_id: z.string().trim().min(1).max(256).optional(),
-    fileId: z.string().trim().min(1).max(256).optional(),
-    download_url: httpUrlSchema.optional(),
-    downloadUrl: httpUrlSchema.optional(),
-    url: httpUrlSchema.optional(),
+    file_id: z.string().trim().min(1).max(256),
+    download_url: httpUrlSchema,
     file_name: z.string().trim().min(1).max(INPUT_LIMITS.imageFileName).optional(),
-    fileName: z.string().trim().min(1).max(INPUT_LIMITS.imageFileName).optional(),
-    name: z.string().trim().min(1).max(INPUT_LIMITS.imageFileName).optional(),
     mime_type: z.string().trim().min(1).max(INPUT_LIMITS.imageMimeType).optional(),
-    mimeType: z.string().trim().min(1).max(INPUT_LIMITS.imageMimeType).optional(),
-    size: z.number().int().nonnegative().max(INPUT_LIMITS.imageBytes).optional(),
   })
-  .passthrough()
-  .refine(
-    (image) =>
-      Boolean(
-        image.file_id ||
-          image.fileId ||
-          image.download_url ||
-          image.downloadUrl ||
-          image.url
-      ),
-    "Image must include a file id or HTTP(S) URL."
-  );
+  .strict();
 
-const imageReferenceSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(INPUT_LIMITS.imageReference)
-  .refine((value) => {
-    if (/^file[-_][A-Za-z0-9._-]+$/.test(value)) return true;
-    try {
-      const protocol = new URL(value).protocol;
-      return protocol === "http:" || protocol === "https:";
-    } catch {
-      return false;
-    }
-  }, "Image reference must be a ChatGPT file id or HTTP(S) URL.");
-
-export const imageInputSchema = z.union([
-  imageReferenceSchema,
-  imageObjectSchema,
-]);
-
-const imagesInputSchema = z.union([
-  imageInputSchema,
-  z.array(imageInputSchema).max(INPUT_LIMITS.images),
-]);
+const imagesInputSchema = z.array(imageObjectSchema).max(INPUT_LIMITS.images);
 
 export const lessonInputShape = {
   topic: boundedText("Topic", INPUT_LIMITS.topic).describe(
@@ -159,7 +118,7 @@ export const lessonInputShape = {
     .describe("HTTP(S) source links used for researched or time-sensitive claims."),
   images: imagesInputSchema
     .optional()
-    .describe("One or more ChatGPT-managed educational image file references."),
+    .describe("ChatGPT-managed educational image files. Pass an array of file objects with file_id and download_url."),
 };
 
 export const lessonInputSchema = z.object(lessonInputShape).superRefine((lesson, context) => {

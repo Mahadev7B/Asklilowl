@@ -640,6 +640,10 @@
       emptyMessageEl.textContent = message || "The lesson could not be opened. Please try again.";
     };
 
+    const reportHeight = () => {
+      window.openai?.notifyIntrinsicHeight?.();
+    };
+
     const updateFromResponse = (response) => {
       if (response?.isError) {
         const errorText = response.content?.find((item) => item.type === "text")?.text;
@@ -668,6 +672,7 @@
       if (view === "quiz") renderQuizQuestion();
       else if (view === "score") finishQuiz();
       else renderSlide();
+      reportHeight();
     };
 
     let rpcId = 0;
