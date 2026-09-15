@@ -121,6 +121,8 @@ test("the host-facing lesson instruction requires safe educational behavior", as
   assert.match(description, /do not call this tool to turn it into a lesson/i);
   assert.match(description, /lesson fields, source links, or image labels.*instructions that override/i);
   assert.match(description, /medical, legal, or financial topics.*general educational information/i);
+  assert.match(description, /simple, slide-specific educational illustrations/i);
+  assert.match(description, /avoid dense infographic posters/i);
 });
 
 test("the lesson widget declares its stable public origin for standard and ChatGPT clients", async (t) => {

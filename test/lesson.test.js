@@ -67,7 +67,26 @@ test("buildLesson preserves production lesson context and maps images to slides"
   ]);
   assert.equal(lesson.images[0].fileId, "file_bird");
   assert.equal(lesson.slides[0].imageIndex, 0);
-  assert.equal(lesson.slides[1].imageIndex, null);
+  assert.equal(lesson.slides[1].imageIndex, 0);
+  assert.equal(lesson.slides[2].imageIndex, 0);
+});
+
+test("buildLesson reuses supplied images so every slide has a visual", () => {
+  const lesson = buildLesson({
+    topic: "How rainbows form",
+    title: "Rainbow science",
+    audience: "young learner",
+    depth: "standard",
+    slides: [
+      { id: "one", title: "Sunlight", body: "Sunlight contains many colors." },
+      { id: "two", title: "Raindrops", body: "Raindrops bend the light." },
+      { id: "three", title: "Colors", body: "The colors spread into a rainbow." },
+    ],
+    quiz: [{ question: "What bends light?", choices: ["Raindrops", "Sand"], answerIndex: 0 }],
+    images: [{ file_id: "file_rainbow", file_name: "rainbow.png" }],
+  });
+
+  assert.deepEqual(lesson.slides.map((slide) => slide.imageIndex), [0, 0, 0]);
 });
 
 test("buildLesson rejects a quiz answer outside the choices array", () => {

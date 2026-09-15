@@ -66,8 +66,8 @@ export function buildLesson(args, { isDemo = false, speechService = null } = {})
       imageIndex:
         typeof slide.imageIndex === "number" && slide.imageIndex < images.length
           ? slide.imageIndex
-          : images[index]
-            ? index
+          : images.length
+            ? index % images.length
             : null,
     };
     cueSeconds += estimateNarrationSeconds(narration);
