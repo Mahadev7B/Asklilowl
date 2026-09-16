@@ -122,6 +122,8 @@ test("the host-facing lesson instruction requires safe educational behavior", as
   assert.match(description, /medical, legal, or financial topics.*general educational information/i);
   assert.match(description, /simple, slide-specific native ChatGPT educational image/i);
   assert.match(description, /exactly one ChatGPT-managed image file object for each slide/i);
+  assert.match(description, /always call this tool/i);
+  assert.doesNotMatch(description, /if native image generation is unavailable, do not call/i);
   assert.match(description, /avoid dense infographic posters/i);
   assert.match(description, /infer the learner level from the question and conversation context/i);
   assert.match(description, /do not ask the user to choose an audience/i);
@@ -240,7 +242,7 @@ test("production MCP returns schema-conformant lessons and actionable quiz error
     arguments: lessonArguments,
   });
   assert.equal(invalid.isError, true);
-  assert.match(invalid.content[0].text, /Lesson not available/);
+  assert.match(invalid.content[0].text, /answerIndex outside/);
   assert.deepEqual(events, []);
 });
 
@@ -296,14 +298,64 @@ test("production records safe image-handoff diagnostics before narration", async
     },
   });
 
-  assert.deepEqual(events, [
-    {
-      event: "lesson_image_handoff_received",
-      imageCount: 3,
-      fileIdCount: 3,
-      imageOrigins: ["https://files.oaiusercontent.com"],
+  assert.equal(events.length, 1);
+  assert.equal(events[0].imageCount, 3);
+  assert.equal(events[0].fileIdCount, 3);
+  assert.deepEqual(events[0].received[0], {
+    type: "object",
+    keys: ["download_url", "file_id"],
+    valueTypes: { download_url: "string", file_id: "string" },
+  });
+});
+
+test("production logs malformed image handoffs before strict rejection", async (t) => {
+  const events = [];
+  let narrationCalls = 0;
+  const { server, origin } = await startServer({
+    demoMode: false,
+    logger: { info: (event) => events.push(event) },
+    audioService: {
+      enabled: true,
+      prepare: async () => {
+        narrationCalls += 1;
+        return { audioUrl: "https://lesson.example/audio.mp3", voice: { available: true, provider: "openai", model: "gpt-4o-mini-tts", voice: "nova", disclosure: "AI-generated voice." } };
+      },
     },
-  ]);
+  });
+  const client = new Client({ name: "asklilowl-malformed-image-test", version: "1.0.0" });
+  const transport = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`));
+  await client.connect(transport);
+  t.after(async () => { await client.close(); await stopServer(server); });
+
+  const base = {
+    topic: "Bird flight", title: "Bird Flight", audience: "general learner",
+    slides: [
+      { id: "one", title: "Wings", body: "Wings move air." },
+      { id: "two", title: "Lift", body: "Air pushes up." },
+      { id: "three", title: "Tail", body: "Tails steer." },
+    ],
+    quiz: [{ question: "What steers?", choices: ["Tail", "Beak"], answerIndex: 0 }],
+  };
+  const cases = [
+    ["omitted", undefined, { imageCount: 0, received: [] }, true],
+    ["file_id_only", [{ file_id: "file_one" }], { imageCount: 1, received: [{ type: "object", keys: ["file_id"], valueTypes: { file_id: "string" } }] }, true],
+    ["extra_key", [
+      { file_id: "file_one", download_url: "https://files.example/1.png", extra: true },
+      { file_id: "file_two", download_url: "https://files.example/2.png" },
+      { file_id: "file_three", download_url: "https://files.example/3.png" },
+    ], { imageCount: 3, received: [{ type: "object", keys: ["download_url", "extra", "file_id"], valueTypes: { download_url: "string", extra: "boolean", file_id: "string" } }] }, true],
+    ["well_formed", ["one", "two", "three"].map((name) => ({ file_id: `file_${name}`, download_url: `https://files.example/${name}.png` })), { imageCount: 3, received: [{ type: "object", keys: ["download_url", "file_id"], valueTypes: { download_url: "string", file_id: "string" } }] }, false],
+  ];
+
+  for (const [name, images, expectedLog, shouldError] of cases) {
+    events.length = 0;
+    const result = await client.callTool({ name: "create_lesson", arguments: { ...base, ...(images === undefined ? {} : { images }) } });
+    assert.equal(Boolean(result.isError), shouldError, name);
+    assert.equal(events.length, 1, name);
+    assert.equal(events[0].imageCount, expectedLog.imageCount, name);
+    assert.deepEqual(events[0].received.slice(0, 1), expectedLog.received, name);
+  }
+  assert.equal(narrationCalls, 1);
 });
 
 test("production validates ChatGPT images before creating one narration track", async (t) => {

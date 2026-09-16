@@ -5,6 +5,7 @@ import {
   INPUT_LIMITS,
   lessonInputSchema,
   lessonOutputSchema,
+  validateStrictLessonInput,
 } from "../lesson-schema.js";
 import { buildLesson } from "../lesson.js";
 
@@ -97,22 +98,32 @@ test("source links must use HTTP or HTTPS", () => {
   assert.equal(lessonInputSchema.safeParse(input).success, false);
 });
 
-test("image inputs must be fully described ChatGPT file objects", () => {
+test("image inputs are accepted at the MCP boundary for diagnostic logging", () => {
   const unsafe = validInput();
   unsafe.images = "javascript:alert(1)";
-  assert.equal(lessonInputSchema.safeParse(unsafe).success, false);
+  assert.equal(lessonInputSchema.safeParse(unsafe).success, true);
 
   const inline = validInput();
   inline.images = "data:image/png;base64,AAAA";
-  assert.equal(lessonInputSchema.safeParse(inline).success, false);
+  assert.equal(lessonInputSchema.safeParse(inline).success, true);
 
   const file = validInput();
   file.images = "file_abc123";
-  assert.equal(lessonInputSchema.safeParse(file).success, false);
+  assert.equal(lessonInputSchema.safeParse(file).success, true);
 
   const missingDownloadUrl = validInput();
   missingDownloadUrl.images = [{ file_id: "file_abc123" }];
-  assert.equal(lessonInputSchema.safeParse(missingDownloadUrl).success, false);
+  assert.equal(lessonInputSchema.safeParse(missingDownloadUrl).success, true);
+});
+
+test("strict validation still rejects malformed images after boundary logging", () => {
+  const missingDownloadUrl = validInput();
+  missingDownloadUrl.images = [{ file_id: "file_abc123" }];
+  assert.throws(() => validateStrictLessonInput(missingDownloadUrl), /download_url/i);
+
+  const unexpectedField = validInput();
+  unexpectedField.images[0].unexpected = true;
+  assert.throws(() => validateStrictLessonInput(unexpectedField), /unrecognized key/i);
 });
 
 test("quiz answer indices are validated against each choices array", () => {

@@ -367,20 +367,12 @@
       return null;
     };
 
-    const showImageFallback = (slide, message) => {
-      visualEl.replaceChildren();
-      const fallback = document.createElement("div");
-      fallback.className = "image-placeholder";
-      fallback.textContent = slide.imageAlt || message;
-      visualEl.appendChild(fallback);
-    };
-
     const renderVisual = async (slide) => {
       const token = ++visualRenderToken;
       visualEl.replaceChildren();
       const image = getSlideImage(slide);
       if (!image) {
-        showImageFallback(slide, "No illustration was supplied for this slide.");
+        showErrorState("A required lesson image was missing. Please ask ChatGPT to create the lesson again.");
         return;
       }
       const loading = document.createElement("div");
@@ -390,7 +382,7 @@
       const imageUrl = await resolveImageUrl(image);
       if (token !== visualRenderToken) return;
       if (!imageUrl) {
-        showImageFallback(slide, "The illustration could not be opened.");
+        showErrorState("A required lesson image could not be opened. Please ask ChatGPT to create the lesson again.");
         return;
       }
       const img = document.createElement("img");
@@ -399,7 +391,9 @@
       img.referrerPolicy = "no-referrer";
       img.addEventListener("error", () => {
         if (token === visualRenderToken) {
-          showErrorState("A required lesson image could not be displayed. Please ask ChatGPT to create the lesson again.");
+          let origin = "unknown origin";
+          try { origin = new URL(imageUrl).origin; } catch {}
+          showErrorState(`A required lesson image could not be displayed. Browser refused ${origin}. Please ask ChatGPT to create the lesson again.`);
         }
       });
       visualEl.replaceChildren(img);
@@ -461,6 +455,10 @@
     const renderSlide = ({ synchronizeAudio = true } = {}) => {
       view = "lesson";
       const slide = lesson.slides[slideIndex];
+      if (!getSlideImage(slide)) {
+        showErrorState("A required lesson image was missing. Please ask ChatGPT to create the lesson again.");
+        return;
+      }
       lessonEl.hidden = false;
       quizEl.hidden = true;
       topicEl.textContent = lesson.topic || "Curious question";

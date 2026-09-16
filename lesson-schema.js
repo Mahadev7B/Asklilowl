@@ -78,7 +78,10 @@ const imageObjectSchema = z
   })
   .strict();
 
-const imagesInputSchema = z.array(imageObjectSchema).max(INPUT_LIMITS.images);
+const receivedImagesSchema = z.preprocess(
+  (value) => value == null || Array.isArray(value) ? value : [value],
+  z.array(z.union([z.string(), z.object({}).passthrough()])).max(INPUT_LIMITS.images)
+);
 
 export const lessonInputShape = {
   topic: boundedText("Topic", INPUT_LIMITS.topic).describe(
@@ -118,7 +121,7 @@ export const lessonInputShape = {
     .max(INPUT_LIMITS.sources)
     .default([])
     .describe("HTTP(S) source links used for researched or time-sensitive claims."),
-  images: imagesInputSchema
+  images: receivedImagesSchema
     .optional()
     .describe("ChatGPT-managed educational image files. Pass an array of file objects with file_id and download_url."),
 };
@@ -134,6 +137,15 @@ export const lessonInputSchema = z.object(lessonInputShape).superRefine((lesson,
     }
   });
 });
+
+const strictLessonInputSchema = z.object({
+  ...lessonInputShape,
+  images: z.array(imageObjectSchema).max(INPUT_LIMITS.images).optional(),
+});
+
+export function validateStrictLessonInput(input) {
+  return strictLessonInputSchema.parse(input);
+}
 
 const normalizedImageSchema = z.object({
   index: z.number().int().nonnegative(),

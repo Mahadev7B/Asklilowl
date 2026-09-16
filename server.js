@@ -18,7 +18,7 @@ import {
 } from "./demo-fixtures.js";
 import { createRateLimiter, setSecurityHeaders } from "./http-security.js";
 import { buildLesson } from "./lesson.js";
-import { lessonInputShape, lessonOutputShape } from "./lesson-schema.js";
+import { lessonInputShape, lessonOutputShape, validateStrictLessonInput } from "./lesson-schema.js";
 import { createSpeechService } from "./speech.js";
 import { createLessonAudioService } from "./lesson-audio.js";
 
@@ -51,19 +51,16 @@ function defaultPublicOrigin() {
 
 function summarizeImageHandoff(images) {
   const list = Array.isArray(images) ? images : [];
-  const imageOrigins = [...new Set(list.flatMap((image) => {
-    try {
-      return [new URL(image?.download_url ?? image?.downloadUrl ?? image?.url).origin];
-    } catch {
-      return [];
-    }
-  }))];
-
+  const received = list.map((image) => {
+    if (typeof image === "string") return { type: "string", keys: [] };
+    if (!image || typeof image !== "object") return { type: typeof image, keys: [] };
+    return { type: "object", keys: Object.keys(image).sort(), valueTypes: Object.fromEntries(Object.entries(image).map(([key, value]) => [key, Array.isArray(value) ? "array" : typeof value])) };
+  });
   return {
     event: "lesson_image_handoff_received",
     imageCount: list.length,
     fileIdCount: list.filter((image) => Boolean(image?.file_id ?? image?.fileId)).length,
-    imageOrigins,
+    received,
   };
 }
 
@@ -127,7 +124,7 @@ export function createAskLilOwlServer({
         "Choose the slide count dynamically from the topic and requested depth; do not force four slides. " +
         "Typical guidance: 4-5 for simple topics, 6-8 for moderate topics, 9-12 for complex topics, and up to 20 for a deep dive. " +
         "Use the minimum number of slides needed for a clear explanation and create an age/skill-appropriate quiz. " +
-        "For every slide, generate and attach one simple, slide-specific native ChatGPT educational image with a clear focal point and only minimal readable labels. Avoid dense infographic posters, collages, tiny text, and decorative pictures. Pass exactly one ChatGPT-managed image file object for each slide; if native image generation is unavailable, do not call this tool. " +
+        "For every slide, generate and attach one simple, slide-specific native ChatGPT educational image with a clear focal point and only minimal readable labels. Avoid dense infographic posters, collages, tiny text, and decorative pictures. Pass exactly one ChatGPT-managed image file object for each slide. Preserve the image fields exactly as ChatGPT provides them. Always call this tool so AskLilOwl can report an invalid image handoff instead of silently dropping the lesson. " +
         "Write each slide body as a concise, age-appropriate explanation. Use a friendly, curiosity-led, non-judgmental teaching style; for young learners, prefer simple words, relatable examples, and gentle encouragement over a textbook tone. " +
         "For requests involving harm, illegal activity, self-harm, explicit sexual content, or sexual content involving minors, do not call this tool to turn it into a lesson. Respond safely in ChatGPT instead. " +
         "For medical, legal, or financial topics, provide general educational information with appropriate uncertainty and sources when needed, not personalized advice, diagnosis, or instructions for urgent action. " +
@@ -152,6 +149,7 @@ export function createAskLilOwlServer({
           lesson = buildLesson(args, { isDemo: true, speechService });
         } else {
           logger.info?.(summarizeImageHandoff(args.images));
+          validateStrictLessonInput(args);
           buildLesson(args);
           const narration = args.slides.map((slide) => slide.body).join("\n\n");
           const prepared = await audioService.prepare({
@@ -176,7 +174,10 @@ export function createAskLilOwlServer({
           content: [
             {
               type: "text",
-              text: "Lesson not available right now. Sorry—please try again.",
+              text:
+                error instanceof RangeError || error?.name === "ZodError"
+                  ? error.message.slice(0, 500)
+                  : "Lesson not available right now. Sorry—please try again.",
             },
           ],
         };

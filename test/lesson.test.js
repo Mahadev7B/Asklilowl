@@ -18,13 +18,13 @@ const validLessonInput = {
   quiz: [{ question: "What helps a bird steer?", choices: ["Tail feathers", "Its beak"], answerIndex: 0 }],
 };
 
-test("lesson input requires ChatGPT file objects for image parameters", () => {
+test("lesson input accepts image references for handler diagnostics", () => {
   const result = lessonInputSchema.safeParse({
     ...validLessonInput,
     images: "file_00000000b37081fb95d0eac47eda06ce",
   });
 
-  assert.equal(result.success, false);
+  assert.equal(result.success, true);
 });
 
 test("lesson input accepts an array of fully described ChatGPT image files", () => {

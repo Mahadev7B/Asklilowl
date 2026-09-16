@@ -34,7 +34,18 @@ function lessonResult(overrides = {}) {
     voice: { available: false, provider: null, model: null, voice: null, disclosure: "" },
     ...overrides,
   };
-  return { structuredContent: { lesson } };
+  const slides = lesson.slides.map((slide, index) => ({
+    ...slide,
+    imageIndex: slide.imageIndex ?? index,
+  }));
+  const images = Object.hasOwn(overrides, "images")
+    ? lesson.images
+    : slides.map((_, index) => ({
+      index,
+      fileId: `file_${index + 1}`,
+      url: `https://files.example/${index + 1}.png`,
+    }));
+  return { structuredContent: { lesson: { ...lesson, slides, images } } };
 }
 
 async function loadWidget({ openai } = {}) {
@@ -133,6 +144,24 @@ test("widget hides the entire lesson when a required slide image cannot load", a
   assert.equal(dom.window.document.querySelector("#lesson").hidden, true);
   assert.equal(dom.window.document.querySelector("#empty").hidden, false);
   assert.match(dom.window.document.querySelector("#empty-message").textContent, /image could not be displayed/i);
+  assert.match(dom.window.document.querySelector("#empty-message").textContent, /https:\/\/files\.example/);
+});
+
+test("widget hides the entire lesson when a required slide image is absent", async (t) => {
+  const { dom } = await loadWidget();
+  t.after(() => dom.window.close());
+  await deliver(dom, lessonResult({
+    slides: [
+      { id: "one", number: 1, title: "Wings", body: "Wings push air.", imageIndex: 0 },
+      { id: "two", number: 2, title: "Lift", body: "Lift pushes up.", imageIndex: 1 },
+      { id: "three", number: 3, title: "Steering", body: "Tails steer.", imageIndex: 2 },
+    ],
+    images: [],
+  }));
+  assert.equal(dom.window.document.querySelector("#lesson").hidden, true);
+  assert.equal(dom.window.document.querySelector("#empty").hidden, false);
+  assert.match(dom.window.document.querySelector("#empty-message").textContent, /required lesson image/i);
+  assert.equal(dom.window.document.querySelector(".image-placeholder"), null);
 });
 
 test("widget restores non-sensitive progress for the same lesson", async (t) => {
