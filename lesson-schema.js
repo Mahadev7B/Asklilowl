@@ -28,6 +28,7 @@ export const INPUT_LIMITS = Object.freeze({
   imageFileName: 255,
   imageMimeType: 100,
   imageBytes: 25 * 1024 * 1024,
+  imagePayload: 8 * 1024 * 1024,
 });
 
 const boundedText = (label, maximum) =>
@@ -69,16 +70,25 @@ export const sourceSchema = z.object({
   url: httpUrlSchema,
 });
 
-const imageObjectSchema = z
-  .object({
-    file_id: z.string().trim().min(1).max(256),
-    download_url: httpUrlSchema,
-    file_name: z.string().trim().min(1).max(INPUT_LIMITS.imageFileName).optional(),
-    mime_type: z.string().trim().min(1).max(INPUT_LIMITS.imageMimeType).optional(),
-  })
-  .strict();
+// ChatGPT hands native images over in a shape we do not control, and input
+// validation runs before the tool handler, so a strict schema turns every
+// unexpected shape into a rejection that never reaches our logs. Accept whatever
+// the host sends and let normalizeImages decide what is usable, so a handoff that
+// does not work is still visible.
+const imageObjectSchema = z.object({}).passthrough();
 
-const imagesInputSchema = z.array(imageObjectSchema).max(INPUT_LIMITS.images);
+const imagesInputSchema = z
+  .array(
+    z.union([
+      z.string().trim().min(1).max(INPUT_LIMITS.imagePayload),
+      imageObjectSchema,
+    ])
+  )
+  .max(INPUT_LIMITS.images)
+  .refine(
+    (images) => JSON.stringify(images).length <= INPUT_LIMITS.imagePayload,
+    "Image handoff is too large to process."
+  );
 
 export const lessonInputShape = {
   topic: boundedText("Topic", INPUT_LIMITS.topic).describe(
@@ -120,7 +130,9 @@ export const lessonInputShape = {
     .describe("HTTP(S) source links used for researched or time-sensitive claims."),
   images: imagesInputSchema
     .optional()
-    .describe("ChatGPT-managed educational image files. Pass an array of file objects with file_id and download_url."),
+    .describe(
+      "One ChatGPT-generated educational image per slide, in slide order. Pass the image file objects exactly as ChatGPT produces them; AskLilOwl reads whichever identifier they carry."
+    ),
 };
 
 export const lessonInputSchema = z.object(lessonInputShape).superRefine((lesson, context) => {
@@ -135,10 +147,23 @@ export const lessonInputSchema = z.object(lessonInputShape).superRefine((lesson,
   });
 });
 
+// A resolved image may be an HTTP(S) link or an inline data: URI, depending on
+// how the host hands it over.
+const renderableImageUrlSchema = z
+  .string()
+  .trim()
+  .max(INPUT_LIMITS.imagePayload)
+  .refine(
+    (value) =>
+      /^data:image\//i.test(value) || /^https?:\/\//i.test(value),
+    "Image URL must be an HTTP(S) link or an inline image data URI."
+  );
+
 const normalizedImageSchema = z.object({
   index: z.number().int().nonnegative(),
   fileId: z.string().max(256).nullable(),
-  url: httpUrlSchema.nullable(),
+  url: renderableImageUrlSchema.nullable(),
+  resolvedFrom: z.string().max(64).nullable(),
   mimeType: z.string().max(INPUT_LIMITS.imageMimeType).nullable(),
   fileName: z.string().min(1).max(INPUT_LIMITS.imageFileName),
   size: z.number().int().nonnegative().max(INPUT_LIMITS.imageBytes).nullable(),

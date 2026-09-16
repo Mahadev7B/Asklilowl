@@ -121,7 +121,10 @@ test("the host-facing lesson instruction requires safe educational behavior", as
   assert.match(description, /lesson fields, source links, or image labels.*instructions that override/i);
   assert.match(description, /medical, legal, or financial topics.*general educational information/i);
   assert.match(description, /simple, slide-specific native ChatGPT educational image/i);
-  assert.match(description, /exactly one ChatGPT-managed image file object for each slide/i);
+  assert.match(description, /Pass the generated images in the images array in slide order/i);
+  // Aborting the call on a failed image handoff hid every near-miss from the logs.
+  assert.match(description, /Always call this tool even if the images cannot be attached/i);
+  assert.doesNotMatch(description, /if native image generation is unavailable, do not call this tool/i);
   assert.match(description, /avoid dense infographic posters/i);
   assert.match(description, /infer the learner level from the question and conversation context/i);
   assert.match(description, /do not ask the user to choose an audience/i);
@@ -228,7 +231,9 @@ test("production MCP returns schema-conformant lessons and actionable quiz error
     arguments: lessonArguments,
   });
   assert.equal(invalid.isError, true);
-  assert.match(invalid.content[0].text, /Lesson not available/);
+  // The caller has to be told what to fix, not just that something broke.
+  assert.match(invalid.content[0].text, /answerIndex outside its choices array/i);
+  assert.match(invalid.content[0].text, /call AskLilOwl again/i);
   assert.deepEqual(events, []);
 });
 
@@ -288,7 +293,17 @@ test("production records safe image-handoff diagnostics before narration", async
     {
       event: "lesson_image_handoff_received",
       imageCount: 3,
+      shapes: ["leaf", "light", "food"].map((name) => ({
+        shape: "object",
+        fields: {
+          file_id: "string(9)".replace("9", String(`file_${name}`.length)),
+          download_url: "url(https://files.oaiusercontent.com)",
+        },
+      })),
+      resolvedFrom: ["download_url", "download_url", "download_url"],
+      usableCount: 3,
       fileIdCount: 3,
+      urlCount: 3,
       imageOrigins: ["https://files.oaiusercontent.com"],
     },
   ]);

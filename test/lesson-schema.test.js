@@ -97,22 +97,56 @@ test("source links must use HTTP or HTTPS", () => {
   assert.equal(lessonInputSchema.safeParse(input).success, false);
 });
 
-test("image inputs must be fully described ChatGPT file objects", () => {
-  const unsafe = validInput();
-  unsafe.images = "javascript:alert(1)";
-  assert.equal(lessonInputSchema.safeParse(unsafe).success, false);
+test("image inputs accept whatever shape ChatGPT hands over", () => {
+  // Input validation runs before the tool handler, so a strict schema turns an
+  // unexpected handoff into a rejection we never see. Accept the shape here and
+  // let buildLesson decide whether it is usable, so failures stay diagnosable.
+  const fileIdOnly = validInput();
+  fileIdOnly.images = [{ file_id: "file_abc123" }];
+  assert.equal(lessonInputSchema.safeParse(fileIdOnly).success, true);
+
+  const unknownFields = validInput();
+  unknownFields.images = [{ id: "file_abc123", width: 1024, container: { kind: "image" } }];
+  assert.equal(lessonInputSchema.safeParse(unknownFields).success, true);
 
   const inline = validInput();
-  inline.images = "data:image/png;base64,AAAA";
-  assert.equal(lessonInputSchema.safeParse(inline).success, false);
+  inline.images = ["data:image/png;base64,AAAA"];
+  assert.equal(lessonInputSchema.safeParse(inline).success, true);
 
-  const file = validInput();
-  file.images = "file_abc123";
-  assert.equal(lessonInputSchema.safeParse(file).success, false);
+  // images is a list; a bare string is still not one.
+  const bareString = validInput();
+  bareString.images = "file_abc123";
+  assert.equal(lessonInputSchema.safeParse(bareString).success, false);
 
-  const missingDownloadUrl = validInput();
-  missingDownloadUrl.images = [{ file_id: "file_abc123" }];
-  assert.equal(lessonInputSchema.safeParse(missingDownloadUrl).success, false);
+  const oversized = validInput();
+  oversized.images = [`data:image/png;base64,${"A".repeat(INPUT_LIMITS.imagePayload)}`];
+  assert.equal(lessonInputSchema.safeParse(oversized).success, false);
+});
+
+test("an unrenderable image reference never reaches the widget as a URL", () => {
+  const lesson = buildLesson({
+    ...validInput(),
+    images: [
+      { file_id: "file_one", download_url: "javascript:alert(1)" },
+      { file_id: "file_two", download_url: "https://files.example/two.png" },
+      { file_id: "file_three" },
+    ],
+  });
+
+  // A javascript: reference is not a renderable URL, so it is dropped rather
+  // than handed to the widget; the file id survives for the host to resolve.
+  assert.equal(lesson.images[0].url, null);
+  assert.equal(lesson.images[0].fileId, "file_one");
+  assert.equal(lesson.images[1].url, "https://files.example/two.png");
+  assert.equal(lesson.images[1].resolvedFrom, "download_url");
+  assert.equal(lesson.images[2].url, null);
+});
+
+test("buildLesson explains an image handoff it cannot read", () => {
+  assert.throws(
+    () => buildLesson({ ...validInput(), images: [{ width: 1 }, { width: 2 }, { width: 3 }] }),
+    /could not read a file reference or URL from 3 of 3 images/i
+  );
 });
 
 test("quiz answer indices are validated against each choices array", () => {

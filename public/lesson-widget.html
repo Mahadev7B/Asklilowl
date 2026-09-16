@@ -77,6 +77,7 @@
     .visual { aspect-ratio: 16 / 9; display: grid; place-items: center; overflow: hidden; background: var(--accent-soft); }
     .visual img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .image-placeholder { max-width: 390px; padding: 22px; text-align: center; color: var(--accent); font-weight: 650; }
+    .image-diagnostic { max-width: 390px; margin: 8px 0 0; font-size: 11px; line-height: 1.45; text-align: center; opacity: 0.7; word-break: break-word; }
     .slide-content { padding: 20px 22px 22px; }
     .slide-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; color: var(--muted); font-size: .84rem; font-weight: 700; }
     .dots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: flex-end; }
@@ -353,26 +354,58 @@
       return lesson.images[slide.imageIndex] ?? null;
     };
 
-    const resolveImageUrl = async (image) => {
-      if (image?.url) return image.url;
-      if (!image?.fileId) return null;
-      try {
-        if (window.openai?.getFileDownloadUrl) {
-          const result = await window.openai.getFileDownloadUrl({ fileId: image.fileId });
-          return result?.downloadUrl ?? result?.download_url ?? null;
-        }
-      } catch (error) {
-        console.error("AskLilOwl could not resolve ChatGPT image file:", error);
-      }
-      return null;
+    // Which members the host actually exposes is the thing eight live tests never
+    // established. Enumerate rather than assume, and show it when an image fails.
+    const describeHostBridge = () => {
+      const bridge = typeof window !== "undefined" ? window.openai : null;
+      if (!bridge) return "host bridge absent";
+      const members = new Set();
+      for (const key in bridge) members.add(key);
+      Object.getOwnPropertyNames(bridge).forEach((key) => members.add(key));
+      const listed = [...members].sort().join(", ");
+      return listed ? `host bridge: ${listed}` : "host bridge exposes no members";
     };
 
-    const showImageFallback = (slide, message) => {
+    const FILE_RESOLVERS = ["getFileDownloadUrl", "getFileUrl", "resolveFile", "getFile"];
+
+    const resolveImageUrl = async (image) => {
+      if (image?.url) return { url: image.url, stage: `direct:${image.resolvedFrom ?? "url"}` };
+      if (!image?.fileId) return { url: null, stage: "no-reference" };
+
+      const bridge = typeof window !== "undefined" ? window.openai : null;
+      const available = FILE_RESOLVERS.filter((name) => typeof bridge?.[name] === "function");
+      if (!available.length) return { url: null, stage: "no-host-file-api" };
+
+      for (const name of available) {
+        try {
+          const result = await bridge[name]({ fileId: image.fileId, file_id: image.fileId });
+          const url =
+            (typeof result === "string" ? result : null) ??
+            result?.downloadUrl ??
+            result?.download_url ??
+            result?.url ??
+            null;
+          if (url) return { url, stage: `host:${name}` };
+        } catch (error) {
+          return { url: null, stage: `host:${name}:threw:${String(error?.message ?? error).slice(0, 80)}` };
+        }
+      }
+      return { url: null, stage: "host-returned-no-url" };
+    };
+
+    const showImageFallback = (slide, message, diagnostic) => {
       visualEl.replaceChildren();
       const fallback = document.createElement("div");
       fallback.className = "image-placeholder";
       fallback.textContent = slide.imageAlt || message;
       visualEl.appendChild(fallback);
+      if (!diagnostic) return;
+      // Surfaced on screen because the sandbox console is not reachable during a
+      // live test, and an invisible failure is what made this unfixable.
+      const note = document.createElement("p");
+      note.className = "image-diagnostic";
+      note.textContent = diagnostic;
+      visualEl.appendChild(note);
     };
 
     const renderVisual = async (slide) => {
@@ -387,20 +420,37 @@
       loading.className = "image-placeholder";
       loading.textContent = "Loading illustration…";
       visualEl.appendChild(loading);
-      const imageUrl = await resolveImageUrl(image);
+
+      const { url: imageUrl, stage } = await resolveImageUrl(image);
       if (token !== visualRenderToken) return;
       if (!imageUrl) {
-        showImageFallback(slide, "The illustration could not be opened.");
+        showImageFallback(
+          slide,
+          "The illustration could not be opened.",
+          `Image ${image.index + 1} unresolved at ${stage}. ${describeHostBridge()}`
+        );
         return;
       }
+
       const img = document.createElement("img");
       img.src = imageUrl;
       img.alt = slide.imageAlt || slide.title || "Lesson illustration";
       img.referrerPolicy = "no-referrer";
       img.addEventListener("error", () => {
-        if (token === visualRenderToken) {
-          showImageFallback(slide, "The illustration could not be displayed.");
+        if (token !== visualRenderToken) return;
+        let origin = "inline data";
+        try {
+          if (!imageUrl.startsWith("data:")) origin = new URL(imageUrl).origin;
+        } catch {
+          origin = "unparseable URL";
         }
+        // Reached the browser but would not load: blocked by the sandbox CSP,
+        // rejected by the origin, or expired. The origin is what distinguishes them.
+        showImageFallback(
+          slide,
+          "The illustration could not be displayed.",
+          `Image ${image.index + 1} resolved via ${stage} from ${origin}, but the browser refused to load it.`
+        );
       });
       visualEl.replaceChildren(img);
     };

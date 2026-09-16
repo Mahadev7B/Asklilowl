@@ -203,3 +203,100 @@ test("widget plays one lesson track and changes slides at its cue times", async 
   assert.equal(playCalls, 1);
   assert.match(document.querySelector("#voice-disclosure").textContent, /AI-generated voice/);
 });
+
+function imageLesson(images, openaiOverrides) {
+  return {
+    images,
+    slides: [
+      { id: "one", number: 1, title: "Wings", body: "Wings push air.", imageAlt: "A bird wing", imageIndex: 0 },
+      { id: "two", number: 2, title: "Lift", body: "Lift pushes up.", imageAlt: "Air under a wing", imageIndex: 1 },
+      { id: "three", number: 3, title: "Steering", body: "Tails steer.", imageAlt: "A tail turning", imageIndex: 2 },
+    ],
+    ...openaiOverrides,
+  };
+}
+
+function slideImages(overrides) {
+  return [0, 1, 2].map((index) => ({
+    index,
+    fileId: `file_${index}`,
+    url: `https://files.oaiusercontent.com/slide-${index}.png`,
+    resolvedFrom: "download_url",
+    mimeType: "image/png",
+    fileName: `slide-${index}.png`,
+    size: null,
+    ...overrides,
+  }));
+}
+
+test("widget renders a supplied slide illustration", async (t) => {
+  const { dom } = await loadWidget({ openai: {} });
+  t.after(() => dom.window.close());
+
+  await deliver(dom, lessonResult(imageLesson(slideImages())));
+
+  const img = dom.window.document.querySelector("#visual img");
+  assert.ok(img, "a slide image should be rendered");
+  assert.equal(img.src, "https://files.oaiusercontent.com/slide-0.png");
+  assert.equal(img.alt, "A bird wing");
+  assert.equal(dom.window.document.querySelector(".image-diagnostic"), null);
+});
+
+test("widget names the stage and host surface when a file reference cannot be resolved", async (t) => {
+  // No host file-resolution member exists, which is exactly the case eight live
+  // tests could not distinguish from a CSP block.
+  const { dom } = await loadWidget({ openai: { notifyIntrinsicHeight() {} } });
+  t.after(() => dom.window.close());
+
+  await deliver(
+    dom,
+    lessonResult(imageLesson(slideImages({ url: null, resolvedFrom: null })))
+  );
+
+  const diagnostic = dom.window.document.querySelector(".image-diagnostic");
+  assert.ok(diagnostic, "an unresolved image should explain itself on screen");
+  assert.match(diagnostic.textContent, /unresolved at no-host-file-api/);
+  assert.match(diagnostic.textContent, /host bridge: notifyIntrinsicHeight/);
+  assert.equal(dom.window.document.querySelector(".image-placeholder").textContent, "A bird wing");
+});
+
+test("widget resolves a file reference through whichever host member exists", async (t) => {
+  const calls = [];
+  const { dom } = await loadWidget({
+    openai: {
+      getFileUrl: async (request) => {
+        calls.push(request);
+        return { downloadUrl: "https://files.oaiusercontent.com/resolved.png" };
+      },
+    },
+  });
+  t.after(() => dom.window.close());
+
+  await deliver(
+    dom,
+    lessonResult(imageLesson(slideImages({ url: null, resolvedFrom: null })))
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].fileId, "file_0");
+  const img = dom.window.document.querySelector("#visual img");
+  assert.ok(img);
+  assert.equal(img.src, "https://files.oaiusercontent.com/resolved.png");
+});
+
+test("widget reports the origin when the browser refuses a resolved image", async (t) => {
+  const { dom } = await loadWidget({ openai: {} });
+  t.after(() => dom.window.close());
+
+  await deliver(dom, lessonResult(imageLesson(slideImages())));
+
+  const img = dom.window.document.querySelector("#visual img");
+  img.dispatchEvent(new dom.window.Event("error"));
+  await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
+
+  const diagnostic = dom.window.document.querySelector(".image-diagnostic");
+  assert.ok(diagnostic, "a refused image should say where it came from");
+  assert.match(diagnostic.textContent, /resolved via direct:download_url/);
+  assert.match(diagnostic.textContent, /https:\/\/files\.oaiusercontent\.com/);
+  assert.match(diagnostic.textContent, /browser refused to load it/);
+});

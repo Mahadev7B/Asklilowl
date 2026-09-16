@@ -133,7 +133,7 @@ test("buildLesson rejects a production lesson without one ChatGPT image per slid
     ],
     quiz: [{ question: "What bends light?", choices: ["Raindrops", "Sand"], answerIndex: 0 }],
     images: [{ file_id: "file_rainbow", file_name: "rainbow.png" }],
-  }), /AskLilOwl requires one image per slide before it can show a lesson/);
+  }), /needs one image per slide: 3 slides but 1 image were passed/);
 });
 
 test("buildLesson rejects a quiz answer outside the choices array", () => {
