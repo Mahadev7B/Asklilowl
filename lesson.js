@@ -43,7 +43,7 @@ function estimateNarrationSeconds(narration) {
   return Math.max(4, Math.ceil(wordCount / 2.5) + 1);
 }
 
-export function buildLesson(args, { isDemo = false, speechService = null } = {}) {
+export function buildLesson(args, { isDemo = false, speechService = null, images: preparedImages, audioUrl: preparedAudioUrl, voice: preparedVoice } = {}) {
   const invalidQuiz = args.quiz.find(
     (item) => item.answerIndex < 0 || item.answerIndex >= item.choices.length
   );
@@ -54,7 +54,10 @@ export function buildLesson(args, { isDemo = false, speechService = null } = {})
     );
   }
 
-  const images = normalizeImages(args.images);
+  const images = normalizeImages(preparedImages ?? args.images);
+  if (!isDemo && preparedImages && images.length !== args.slides.length) {
+    throw new RangeError("AskLilOwl requires one image per slide before it can show a lesson.");
+  }
   let cueSeconds = 0;
   const slides = args.slides.map((slide, index) => {
     const narration = slide.body;
@@ -63,8 +66,9 @@ export function buildLesson(args, { isDemo = false, speechService = null } = {})
       narration,
       audioCueSeconds: cueSeconds,
       number: index + 1,
-      imageIndex:
-        typeof slide.imageIndex === "number" && slide.imageIndex < images.length
+      imageIndex: preparedImages
+        ? index
+        : typeof slide.imageIndex === "number" && slide.imageIndex < images.length
           ? slide.imageIndex
           : images.length
             ? index % images.length
@@ -87,12 +91,12 @@ export function buildLesson(args, { isDemo = false, speechService = null } = {})
     objectives: args.objectives ?? [],
     slideCount: slides.length,
     slides,
-    audioUrl: speechService?.enabled ? speechService.createAudioUrl({ narration: lessonNarration, audience: args.audience }) : null,
+    audioUrl: preparedAudioUrl ?? (speechService?.enabled ? speechService.createAudioUrl({ narration: lessonNarration, audience: args.audience }) : null),
     narrationDurationEstimateSeconds: cueSeconds,
     quiz: args.quiz,
     sources: args.sources ?? [],
     images,
     isDemo,
-    voice: speechService?.metadata?.() ?? disabledVoice,
+    voice: preparedVoice ?? speechService?.metadata?.() ?? disabledVoice,
   });
 }

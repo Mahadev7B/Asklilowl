@@ -190,6 +190,10 @@ test("production MCP returns schema-conformant lessons and actionable quiz error
       { id: "two", title: "Lift", body: "Air pushes the bird up." },
       { id: "three", title: "Steering", body: "Tail feathers steer." },
     ],
+    images: ["one", "two", "three"].map((name) => ({
+      file_id: `file_${name}`,
+      download_url: `https://files.example/${name}.png`,
+    })),
     quiz: [
       {
         question: "What helps a bird steer?",
@@ -215,7 +219,7 @@ test("production MCP returns schema-conformant lessons and actionable quiz error
     arguments: lessonArguments,
   });
   assert.equal(invalid.isError, true);
-  assert.match(invalid.content[0].text, /answerIndex/);
+  assert.match(invalid.content[0].text, /Lesson not available/);
 });
 
 test("speech endpoint verifies a signed token and caches generated MP3 bytes", async (t) => {

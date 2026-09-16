@@ -13,6 +13,7 @@ export const INPUT_LIMITS = Object.freeze({
   slideBody: 4_000,
   funFact: 600,
   imageAlt: 300,
+  imagePrompt: 1_000,
   narration: 2_000,
   lessonNarration: 4_096,
   quiz: 10,
@@ -48,6 +49,7 @@ export const slideSchema = z.object({
   body: boundedText("Slide body", INPUT_LIMITS.slideBody),
   funFact: z.string().trim().max(INPUT_LIMITS.funFact).optional(),
   imageAlt: z.string().trim().max(INPUT_LIMITS.imageAlt).optional(),
+  imagePrompt: boundedText("Slide image prompt", INPUT_LIMITS.imagePrompt).optional(),
   imageIndex: z.number().int().nonnegative().max(INPUT_LIMITS.images - 1).optional(),
   narration: z.string().trim().min(1).max(INPUT_LIMITS.narration).optional(),
 });
