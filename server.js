@@ -49,6 +49,24 @@ function defaultPublicOrigin() {
   ).replace(/\/+$/, "");
 }
 
+function summarizeImageHandoff(images) {
+  const list = Array.isArray(images) ? images : [];
+  const imageOrigins = [...new Set(list.flatMap((image) => {
+    try {
+      return [new URL(image?.download_url ?? image?.downloadUrl ?? image?.url).origin];
+    } catch {
+      return [];
+    }
+  }))];
+
+  return {
+    event: "lesson_image_handoff_received",
+    imageCount: list.length,
+    fileIdCount: list.filter((image) => Boolean(image?.file_id ?? image?.fileId)).length,
+    imageOrigins,
+  };
+}
+
 export function createAskLilOwlServer({
   demoMode = isDemoModeEnabled(),
   publicOrigin = defaultPublicOrigin(),
@@ -132,6 +150,7 @@ export function createAskLilOwlServer({
         if (demoMode) {
           lesson = buildLesson(args, { isDemo: true, speechService });
         } else {
+          logger.info?.(summarizeImageHandoff(args.images));
           buildLesson(args);
           const narration = args.slides.map((slide) => slide.body).join("\n\n");
           const prepared = await audioService.prepare({

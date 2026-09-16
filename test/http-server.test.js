@@ -232,6 +232,68 @@ test("production MCP returns schema-conformant lessons and actionable quiz error
   assert.deepEqual(events, []);
 });
 
+test("production records safe image-handoff diagnostics before narration", async (t) => {
+  const events = [];
+  const { server, origin } = await startServer({
+    demoMode: false,
+    logger: { info: (event) => events.push(event) },
+    speechOptions: {
+      apiKey: "test-key",
+      tokenSecret: "s".repeat(32),
+      fetchImpl: async () => new Response(new Uint8Array([0x49, 0x44, 0x33]), { status: 200, headers: { "content-type": "audio/mpeg" } }),
+    },
+  });
+  const client = new Client({ name: "asklilowl-image-diagnostic-test", version: "1.0.0" });
+  const transport = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`));
+  await client.connect(transport);
+  t.after(async () => {
+    await client.close();
+    await stopServer(server);
+  });
+
+  await client.callTool({
+    name: "create_lesson",
+    arguments: {
+      topic: "Why leaves are green",
+      title: "Why Leaves Are Green",
+      audience: "young learner",
+      depth: "quick",
+      summary: "A short lesson about chlorophyll.",
+      slides: [
+        { id: "one", title: "Green pigment", body: "Leaves contain chlorophyll." },
+        { id: "two", title: "Catching light", body: "Chlorophyll helps leaves use sunlight." },
+        { id: "three", title: "Making food", body: "Plants use that energy to make food." },
+      ],
+      images: [
+        {
+          file_id: "file_leaf",
+          download_url: "https://files.oaiusercontent.com/lesson-leaf.png",
+        },
+        {
+          file_id: "file_light",
+          download_url: "https://files.oaiusercontent.com/lesson-light.png",
+        },
+        {
+          file_id: "file_food",
+          download_url: "https://files.oaiusercontent.com/lesson-food.png",
+        },
+      ],
+      quiz: [
+        { question: "What makes leaves green?", choices: ["Chlorophyll", "Clouds"], answerIndex: 0 },
+      ],
+    },
+  });
+
+  assert.deepEqual(events, [
+    {
+      event: "lesson_image_handoff_received",
+      imageCount: 3,
+      fileIdCount: 3,
+      imageOrigins: ["https://files.oaiusercontent.com"],
+    },
+  ]);
+});
+
 test("production validates ChatGPT images before creating one narration track", async (t) => {
   let speechCalls = 0;
   const { server, origin } = await startServer({
