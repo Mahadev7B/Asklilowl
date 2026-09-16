@@ -2,6 +2,22 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
 const MAX_ASSET_BYTES = 8 * 1024 * 1024;
 
+async function providerFailure(response, provider, message) {
+  let code = null;
+  try {
+    const payload = await response.json();
+    if (typeof payload?.error?.code === "string") code = payload.error.code;
+  } catch {
+    // Provider responses are not guaranteed to be JSON. Keep diagnostics bounded.
+  }
+
+  const error = new Error(message);
+  error.provider = provider;
+  error.status = response.status;
+  error.code = code;
+  return error;
+}
+
 export function createLessonAssetService({
   apiKey = process.env.OPENAI_API_KEY,
   tokenSecret = process.env.VOICE_TOKEN_SECRET,
@@ -36,7 +52,7 @@ export function createLessonAssetService({
       headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
       body: JSON.stringify({ model: imageModel, prompt, quality: imageQuality, size: imageSize, response_format: "b64_json" }),
     });
-    if (!response.ok) throw new Error("Image provider unavailable");
+    if (!response.ok) throw await providerFailure(response, "image", "Image provider unavailable");
     const payload = await response.json();
     if (typeof payload?.data?.[0]?.b64_json !== "string") throw new Error("Image provider returned no image.");
     const asset = put(Buffer.from(payload.data[0].b64_json, "base64"), "image/png", `lesson-slide-${index + 1}.png`);

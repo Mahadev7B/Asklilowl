@@ -6,6 +6,22 @@ const DEFAULT_INSTRUCTIONS = "Speak like a friendly, playful, reassuring teacher
 const encode = (value) => Buffer.from(value).toString("base64url");
 const decode = (value) => Buffer.from(value, "base64url");
 
+async function providerFailure(response, message) {
+  let code = null;
+  try {
+    const payload = await response.json();
+    if (typeof payload?.error?.code === "string") code = payload.error.code;
+  } catch {
+    // Provider responses are not guaranteed to be JSON. Keep diagnostics bounded.
+  }
+
+  const error = new Error(message);
+  error.provider = "voice";
+  error.status = response.status;
+  error.code = code;
+  return error;
+}
+
 export function createSpeechService({
   apiKey = process.env.OPENAI_API_KEY,
   tokenSecret = process.env.VOICE_TOKEN_SECRET,
@@ -63,7 +79,9 @@ export function createSpeechService({
       body: JSON.stringify({ model: payload.model ?? model, voice: payload.voice ?? voice, input: payload.narration, instructions: payload.instructions ?? instructions, response_format: "mp3", speed: payload.speed ?? speed }),
       signal,
     });
-    if (!response.ok) throw new Error(response.status === 429 ? "Voice quota unavailable" : "Voice provider unavailable");
+    if (!response.ok) {
+      throw await providerFailure(response, response.status === 429 ? "Voice quota unavailable" : "Voice provider unavailable");
+    }
     const bytes = new Uint8Array(await response.arrayBuffer());
     if (!bytes.length || bytes.length > 4 * 1024 * 1024) throw new Error("Invalid voice response");
     return { bytes, contentType: response.headers.get("content-type") ?? "audio/mpeg" };

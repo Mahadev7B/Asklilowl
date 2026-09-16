@@ -169,7 +169,8 @@ test("production serves the generated photosynthesis lesson illustration", async
 });
 
 test("production MCP returns schema-conformant lessons and actionable quiz errors", async (t) => {
-  const { server, origin } = await startServer({ demoMode: false });
+  const events = [];
+  const { server, origin } = await startServer({ demoMode: false, logger: { error: (event) => events.push(event) } });
   const client = new Client({ name: "asklilowl-call-test", version: "1.0.0" });
   const transport = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`));
   await client.connect(transport);
@@ -220,6 +221,52 @@ test("production MCP returns schema-conformant lessons and actionable quiz error
   });
   assert.equal(invalid.isError, true);
   assert.match(invalid.content[0].text, /Lesson not available/);
+  assert.deepEqual(events, []);
+});
+
+test("lesson failures log only sanitized provider diagnostics", async (t) => {
+  const events = [];
+  const failure = Object.assign(new Error("Image provider unavailable"), {
+    provider: "image",
+    status: 403,
+    code: "image_model_access_denied",
+  });
+  const assetService = {
+    enabled: true,
+    prepare: async () => {
+      throw failure;
+    },
+  };
+  const { server, origin } = await startServer({
+    demoMode: false,
+    assetService,
+    logger: { error: (event) => events.push(event) },
+  });
+  const client = new Client({ name: "asklilowl-diagnostic-test", version: "1.0.0" });
+  const transport = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`));
+  await client.connect(transport);
+  t.after(async () => {
+    await client.close();
+    await stopServer(server);
+  });
+
+  const result = await client.callTool({
+    name: "create_lesson",
+    arguments: {
+      topic: "RAG in AI",
+      title: "RAG",
+      audience: "general learner",
+      slides: [
+        { id: "one", title: "Retrieve", body: "Find useful information first." },
+        { id: "two", title: "Augment", body: "Give the information to the model." },
+        { id: "three", title: "Generate", body: "The model answers using that context." },
+      ],
+      quiz: [{ question: "What does RAG retrieve?", choices: ["Information", "A new model"], answerIndex: 0 }],
+    },
+  });
+
+  assert.equal(result.isError, true);
+  assert.deepEqual(events, [{ event: "lesson_asset_generation_failed", provider: "image", status: 403, code: "image_model_access_denied", message: "Image provider unavailable" }]);
 });
 
 test("speech endpoint verifies a signed token and caches generated MP3 bytes", async (t) => {

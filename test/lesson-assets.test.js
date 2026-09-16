@@ -24,3 +24,24 @@ test("asset service rejects an incomplete image batch", async () => {
 
   await assert.rejects(() => service.prepare({ slidePrompts: ["sand"], narration: "Glass lesson.", audience: "general" }), /Image provider unavailable/);
 });
+
+test("asset service reports a sanitized image-provider failure", async () => {
+  const speechService = { enabled: true, metadata: () => ({ available: true }), generate: async () => ({ bytes: Buffer.from("audio"), contentType: "audio/mpeg" }) };
+  const service = createLessonAssetService({
+    apiKey: "test",
+    tokenSecret: "s".repeat(32),
+    fetchImpl: async () => new Response(JSON.stringify({ error: { code: "image_model_access_denied", message: "Access to this image model is not enabled." } }), { status: 403 }),
+    speechService,
+  });
+
+  await assert.rejects(
+    () => service.prepare({ slidePrompts: ["sand"], narration: "Glass lesson.", audience: "general" }),
+    (error) => {
+      assert.equal(error.provider, "image");
+      assert.equal(error.status, 403);
+      assert.equal(error.code, "image_model_access_denied");
+      assert.equal(error.message, "Image provider unavailable");
+      return true;
+    }
+  );
+});

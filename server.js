@@ -54,6 +54,7 @@ export function createAskLilOwlServer({
   publicOrigin = defaultPublicOrigin(),
   speechService = createSpeechService({ publicOrigin }),
   assetService = createLessonAssetService({ publicOrigin, speechService }),
+  logger = console,
 } = {}) {
   const server = new McpServer(
     { name: "asklilowl-plugin-server", version: "0.3.0" },
@@ -141,6 +142,15 @@ export function createAskLilOwlServer({
         }
       } catch (error) {
         if (!(error instanceof RangeError) && !(error instanceof Error)) throw error;
+        if (typeof error.provider === "string") {
+          logger.error?.({
+            event: "lesson_asset_generation_failed",
+            provider: error.provider,
+            status: Number.isSafeInteger(error.status) ? error.status : null,
+            code: typeof error.code === "string" ? error.code : null,
+            message: error.message.slice(0, 200),
+          });
+        }
         return {
           isError: true,
           content: [
@@ -220,11 +230,13 @@ export function createAskLilOwlHttpServer({
   maxRequestBytes = MAX_MCP_BODY_BYTES,
   rateLimit = { limit: 300, windowMs: 60_000 },
   speechOptions = {},
+  assetService: configuredAssetService = null,
+  logger = console,
 } = {}) {
   const limiter = createRateLimiter(rateLimit);
   const speechLimiter = createRateLimiter({ limit: 60, windowMs: 600_000 });
   const speechService = createSpeechService({ publicOrigin, ...speechOptions });
-  const assetService = createLessonAssetService({ publicOrigin, speechService });
+  const assetService = configuredAssetService ?? createLessonAssetService({ publicOrigin, speechService });
   const speechCache = new Map();
   const testBirdSvg = demoMode
     ? readFileSync(path.join(__dirname, "public", "test-bird.svg"), "utf8")
@@ -373,7 +385,7 @@ export function createAskLilOwlHttpServer({
       response.setHeader("Access-Control-Allow-Origin", "*");
       response.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
 
-      const server = createAskLilOwlServer({ demoMode, publicOrigin, speechService, assetService });
+      const server = createAskLilOwlServer({ demoMode, publicOrigin, speechService, assetService, logger });
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
         enableJsonResponse: true,

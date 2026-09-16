@@ -52,3 +52,25 @@ test("speech provider request uses Nova at a gentle pace and no client credentia
     speed: 0.9,
   });
 });
+
+test("speech service reports a sanitized voice-provider failure", async () => {
+  const service = createSpeechService({
+    apiKey: "test-key",
+    tokenSecret: "d".repeat(32),
+    publicOrigin: "https://lesson.example",
+    fetchImpl: async () => new Response(JSON.stringify({
+      error: { code: "insufficient_quota", message: "You exceeded your current quota." },
+    }), { status: 429 }),
+  });
+
+  await assert.rejects(
+    () => service.generate({ narration: "Leaves capture sunlight.", audience: "middle school" }),
+    (error) => {
+      assert.equal(error.provider, "voice");
+      assert.equal(error.status, 429);
+      assert.equal(error.code, "insufficient_quota");
+      assert.equal(error.message, "Voice quota unavailable");
+      return true;
+    }
+  );
+});
