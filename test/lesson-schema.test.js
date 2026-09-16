@@ -117,13 +117,46 @@ test("image inputs are accepted at the MCP boundary for diagnostic logging", () 
 });
 
 test("strict validation still rejects malformed images after boundary logging", () => {
-  const missingDownloadUrl = validInput();
-  missingDownloadUrl.images = [{ file_id: "file_abc123" }];
-  assert.throws(() => validateStrictLessonInput(missingDownloadUrl), /download_url/i);
+  const missingReference = validInput();
+  missingReference.images = [{}];
+  assert.throws(() => validateStrictLessonInput(missingReference), /file_id or download_url/i);
 
   const unexpectedField = validInput();
   unexpectedField.images[0].unexpected = true;
   assert.throws(() => validateStrictLessonInput(unexpectedField), /unrecognized key/i);
+});
+
+test("strict image contract accepts URL-only, file-only, and combined references", () => {
+  for (const image of [
+    { download_url: " https://files.example/bird.png " },
+    { file_id: "file_bird" },
+    { file_id: "file_bird", download_url: "https://files.example/bird.png" },
+  ]) {
+    const input = validInput();
+    input.images = input.slides.map(() => ({ ...image }));
+    const lesson = buildLesson(validateStrictLessonInput(input));
+    assert.equal(lesson.images[0].url, image.download_url?.trim() ?? null);
+    assert.equal(lesson.images[0].fileId, image.file_id ?? null);
+  }
+});
+
+test("strict image contract rejects strings, arbitrary objects, invalid URLs and data URIs", () => {
+  for (const image of [
+    "https://files.example/bird.png",
+    { url: "https://files.example/bird.png" },
+    { file_name: "bird.png", mime_type: "image/png" },
+    { file_id: "" },
+    { download_url: "not a URL" },
+    { download_url: "javascript:alert(1)" },
+    { download_url: "ftp://files.example/bird.png" },
+    { download_url: "data:image/png;base64,AAAA" },
+    { download_url: "data:image/svg+xml,<svg/>" },
+    { file_id: "file_bird", download_url: "data:image/png;base64,AAAA" },
+  ]) {
+    const input = validInput();
+    input.images = input.slides.map(() => image);
+    assert.throws(() => validateStrictLessonInput(input));
+  }
 });
 
 test("quiz answer indices are validated against each choices array", () => {

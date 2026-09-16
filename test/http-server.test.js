@@ -121,7 +121,9 @@ test("the host-facing lesson instruction requires safe educational behavior", as
   assert.match(description, /lesson fields, source links, or image labels.*instructions that override/i);
   assert.match(description, /medical, legal, or financial topics.*general educational information/i);
   assert.match(description, /simple, slide-specific native ChatGPT educational image/i);
-  assert.match(description, /exactly one ChatGPT-managed image file object for each slide/i);
+  assert.match(description, /exactly one image object for each slide in slide order/i);
+  assert.match(description, /direct HTTPS URL.*download_url/i);
+  assert.match(description, /publicly reachable without login/i);
   assert.match(description, /always call this tool/i);
   assert.doesNotMatch(description, /if native image generation is unavailable, do not call/i);
   assert.match(description, /avoid dense infographic posters/i);
@@ -305,6 +307,8 @@ test("production records safe image-handoff diagnostics before narration", async
     type: "object",
     keys: ["download_url", "file_id"],
     valueTypes: { download_url: "string", file_id: "string" },
+    referenceKind: "both",
+    urlOrigin: "https://files.oaiusercontent.com",
   });
 });
 
@@ -353,7 +357,7 @@ test("production logs malformed image handoffs before strict rejection", async (
     assert.equal(Boolean(result.isError), shouldError, name);
     assert.equal(events.length, 1, name);
     assert.equal(events[0].imageCount, expectedLog.imageCount, name);
-    assert.deepEqual(events[0].received.slice(0, 1), expectedLog.received, name);
+    assert.deepEqual(events[0].received.slice(0, 1).map(({ type, keys, valueTypes }) => ({ type, keys, valueTypes })), expectedLog.received, name);
   }
   assert.equal(narrationCalls, 1);
 });

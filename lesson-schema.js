@@ -71,12 +71,15 @@ export const sourceSchema = z.object({
 
 const imageObjectSchema = z
   .object({
-    file_id: z.string().trim().min(1).max(256),
-    download_url: httpUrlSchema,
+    file_id: z.string().trim().min(1).max(256).optional(),
+    download_url: httpUrlSchema.optional(),
     file_name: z.string().trim().min(1).max(INPUT_LIMITS.imageFileName).optional(),
     mime_type: z.string().trim().min(1).max(INPUT_LIMITS.imageMimeType).optional(),
   })
-  .strict();
+  .strict()
+  .refine((image) => Boolean(image.file_id || image.download_url), {
+    message: "Each image must include file_id or download_url.",
+  });
 
 const receivedImagesSchema = z.preprocess(
   (value) => value == null || Array.isArray(value) ? value : [value],
@@ -123,7 +126,7 @@ export const lessonInputShape = {
     .describe("HTTP(S) source links used for researched or time-sensitive claims."),
   images: receivedImagesSchema
     .optional()
-    .describe("ChatGPT-managed educational image files. Pass an array of file objects with file_id and download_url."),
+    .describe("One image object per slide in slide order. Each object must include file_id or download_url, or both. download_url must be a direct HTTP(S) image URL publicly reachable without login. Optional fields: file_name and mime_type. Bare strings and inline data URIs are not valid images."),
 };
 
 export const lessonInputSchema = z.object(lessonInputShape).superRefine((lesson, context) => {
