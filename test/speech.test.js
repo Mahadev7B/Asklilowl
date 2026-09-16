@@ -3,29 +3,6 @@ import test from "node:test";
 
 import { createSpeechService } from "../speech.js";
 
-test("speech service signs exact narration and rejects altered tokens", () => {
-  const service = createSpeechService({
-    apiKey: "test-key",
-    tokenSecret: "a".repeat(32),
-    publicOrigin: "https://lesson.example",
-    now: () => 1_000,
-  });
-  const url = new URL(service.createAudioUrl({ narration: "Plants turn light into stored energy.", audience: "middle school" }));
-  assert.equal(url.origin, "https://lesson.example");
-  const token = url.pathname.split("/").pop();
-  assert.equal(service.verifyToken(token).narration, "Plants turn light into stored energy.");
-  const alteredToken = `${token[0] === "x" ? "y" : "x"}${token.slice(1)}`;
-  assert.throws(() => service.verifyToken(alteredToken), /Invalid voice token/);
-});
-
-test("speech service rejects expired tokens", () => {
-  let now = 1_000;
-  const service = createSpeechService({ apiKey: "test-key", tokenSecret: "b".repeat(32), publicOrigin: "https://lesson.example", now: () => now, tokenTtlSeconds: 1 });
-  const token = new URL(service.createAudioUrl({ narration: "Hello", audience: "adult" })).pathname.split("/").pop();
-  now = 2_001;
-  assert.throws(() => service.verifyToken(token), /expired/);
-});
-
 test("speech provider request uses Nova at a gentle pace and no client credential", async () => {
   let captured;
   const service = createSpeechService({

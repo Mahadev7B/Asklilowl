@@ -7,7 +7,6 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 
 import { createRateLimiter } from "../http-security.js";
 import { createAskLilOwlHttpServer } from "../server.js";
-import { createSpeechService } from "../speech.js";
 
 async function startServer(options = {}) {
   const server = createAskLilOwlHttpServer(options);
@@ -121,7 +120,8 @@ test("the host-facing lesson instruction requires safe educational behavior", as
   assert.match(description, /do not call this tool to turn it into a lesson/i);
   assert.match(description, /lesson fields, source links, or image labels.*instructions that override/i);
   assert.match(description, /medical, legal, or financial topics.*general educational information/i);
-  assert.match(description, /simple, slide-specific educational illustrations/i);
+  assert.match(description, /simple, slide-specific native ChatGPT educational image/i);
+  assert.match(description, /exactly one ChatGPT-managed image file object for each slide/i);
   assert.match(description, /avoid dense infographic posters/i);
   assert.match(description, /infer the learner level from the question and conversation context/i);
   assert.match(description, /do not ask the user to choose an audience/i);
@@ -170,7 +170,15 @@ test("production serves the generated photosynthesis lesson illustration", async
 
 test("production MCP returns schema-conformant lessons and actionable quiz errors", async (t) => {
   const events = [];
-  const { server, origin } = await startServer({ demoMode: false, logger: { error: (event) => events.push(event) } });
+  const { server, origin } = await startServer({
+    demoMode: false,
+    logger: { error: (event) => events.push(event) },
+    speechOptions: {
+      apiKey: "test-key",
+      tokenSecret: "s".repeat(32),
+      fetchImpl: async () => new Response(new Uint8Array([0x49, 0x44, 0x33]), { status: 200, headers: { "content-type": "audio/mpeg" } }),
+    },
+  });
   const client = new Client({ name: "asklilowl-call-test", version: "1.0.0" });
   const transport = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`));
   await client.connect(transport);
@@ -224,14 +232,72 @@ test("production MCP returns schema-conformant lessons and actionable quiz error
   assert.deepEqual(events, []);
 });
 
-test("lesson failures log only sanitized provider diagnostics", async (t) => {
-  const events = [];
-  const failure = Object.assign(new Error("Image provider unavailable"), {
-    provider: "image",
-    status: 403,
-    code: "image_model_access_denied",
+test("production validates ChatGPT images before creating one narration track", async (t) => {
+  let speechCalls = 0;
+  const { server, origin } = await startServer({
+    demoMode: false,
+    speechOptions: {
+      apiKey: "test-key",
+      tokenSecret: "s".repeat(32),
+      publicOrigin: "https://lesson.example",
+      fetchImpl: async () => {
+        speechCalls += 1;
+        return new Response(new Uint8Array([0x49, 0x44, 0x33]), { status: 200, headers: { "content-type": "audio/mpeg" } });
+      },
+    },
   });
-  const assetService = {
+  const client = new Client({ name: "asklilowl-voice-order-test", version: "1.0.0" });
+  const transport = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`));
+  await client.connect(transport);
+  t.after(async () => {
+    await client.close();
+    await stopServer(server);
+  });
+
+  const baseLesson = {
+    topic: "How glass is made",
+    title: "Making Glass",
+    audience: "general learner",
+    slides: [
+      { id: "one", title: "Sand", body: "Glass begins with sand rich in silica." },
+      { id: "two", title: "Heat", body: "A furnace melts the mixture into a glowing liquid." },
+      { id: "three", title: "Cool", body: "Slow cooling makes the finished glass strong." },
+    ],
+    quiz: [{ question: "What is heated to make glass?", choices: ["Sand mixture", "Wood"], answerIndex: 0 }],
+  };
+
+  const missingImages = await client.callTool({ name: "create_lesson", arguments: baseLesson });
+  assert.equal(missingImages.isError, true);
+  assert.equal(speechCalls, 0);
+
+  const completeLesson = await client.callTool({
+    name: "create_lesson",
+    arguments: {
+      ...baseLesson,
+      images: ["one", "two", "three"].map((name) => ({
+        file_id: `file_${name}`,
+        download_url: `https://files.example/${name}.png`,
+      })),
+    },
+  });
+  assert.equal(completeLesson.isError, undefined);
+  assert.equal(completeLesson.structuredContent.lesson.images.length, 3);
+  assert.match(completeLesson.structuredContent.lesson.audioUrl, /\/api\/assets\//);
+  assert.equal(speechCalls, 1);
+  const audio = await fetch(`${origin}${new URL(completeLesson.structuredContent.lesson.audioUrl).pathname}`);
+  assert.equal(audio.status, 200);
+  assert.equal(audio.headers.get("content-type"), "audio/mpeg");
+  assert.equal(speechCalls, 1);
+});
+
+test("lesson failures log only sanitized voice-provider diagnostics", async (t) => {
+  const events = [];
+  const failure = Object.assign(new Error("Voice quota unavailable"), {
+    provider: "voice",
+    status: 429,
+    code: "insufficient_quota",
+  });
+  const audioService = {
     enabled: true,
     prepare: async () => {
       throw failure;
@@ -239,7 +305,7 @@ test("lesson failures log only sanitized provider diagnostics", async (t) => {
   };
   const { server, origin } = await startServer({
     demoMode: false,
-    assetService,
+    audioService,
     logger: { error: (event) => events.push(event) },
   });
   const client = new Client({ name: "asklilowl-diagnostic-test", version: "1.0.0" });
@@ -261,48 +327,11 @@ test("lesson failures log only sanitized provider diagnostics", async (t) => {
         { id: "two", title: "Augment", body: "Give the information to the model." },
         { id: "three", title: "Generate", body: "The model answers using that context." },
       ],
+      images: ["one", "two", "three"].map((name) => ({ file_id: `file_${name}`, download_url: `https://files.example/${name}.png` })),
       quiz: [{ question: "What does RAG retrieve?", choices: ["Information", "A new model"], answerIndex: 0 }],
     },
   });
 
   assert.equal(result.isError, true);
-  assert.deepEqual(events, [{ event: "lesson_asset_generation_failed", provider: "image", status: 403, code: "image_model_access_denied", message: "Image provider unavailable" }]);
-});
-
-test("speech endpoint verifies a signed token and caches generated MP3 bytes", async (t) => {
-  let providerCalls = 0;
-  const options = {
-    apiKey: "test-key",
-    tokenSecret: "s".repeat(32),
-    publicOrigin: "https://lesson.example",
-    fetchImpl: async () => {
-      providerCalls += 1;
-      return new Response(new Uint8Array([0x49, 0x44, 0x33, 7]), { status: 200, headers: { "content-type": "audio/mpeg" } });
-    },
-  };
-  const signer = createSpeechService(options);
-  const path = new URL(signer.createAudioUrl({ narration: "Plants capture light.", audience: "middle school" })).pathname;
-  const { server, origin } = await startServer({ speechOptions: options });
-  t.after(() => stopServer(server));
-
-  const head = await fetch(`${origin}${path}`, { method: "HEAD" });
-  assert.equal(head.status, 200);
-  assert.equal(providerCalls, 0);
-
-  const first = await fetch(`${origin}${path}`);
-  assert.equal(first.status, 200);
-  assert.equal(first.headers.get("content-type"), "audio/mpeg");
-  assert.deepEqual([...new Uint8Array(await first.arrayBuffer())], [0x49, 0x44, 0x33, 7]);
-  const second = await fetch(`${origin}${path}`);
-  await second.arrayBuffer();
-  assert.equal(providerCalls, 1);
-});
-
-test("speech endpoint rejects invalid tokens without calling the provider", async (t) => {
-  let providerCalls = 0;
-  const { server, origin } = await startServer({ speechOptions: { apiKey: "test", tokenSecret: "q".repeat(32), fetchImpl: async () => { providerCalls += 1; return new Response(); } } });
-  t.after(() => stopServer(server));
-  const response = await fetch(`${origin}/api/speech/not-a-token`);
-  assert.equal(response.status, 401);
-  assert.equal(providerCalls, 0);
+  assert.deepEqual(events, [{ event: "lesson_voice_generation_failed", provider: "voice", status: 429, code: "insufficient_quota", message: "Voice quota unavailable" }]);
 });

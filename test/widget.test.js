@@ -178,7 +178,7 @@ test("widget plays one lesson track and changes slides at its cue times", async 
   dom.window.HTMLMediaElement.prototype.play = async function () { playCalls += 1; };
   await deliver(dom, lessonResult({
     voice: { available: true, provider: "openai", model: "gpt-4o-mini-tts", voice: "nova", disclosure: "AI-generated voice." },
-    audioUrl: "https://lesson.example/api/speech/whole-lesson",
+    audioUrl: "https://lesson.example/api/assets/whole-lesson",
     slides: [
       { id: "one", number: 1, title: "Light", body: "Leaves capture light.", narration: "Leaves capture light.", audioCueSeconds: 0, imageIndex: null },
       { id: "two", number: 2, title: "Water", body: "Roots absorb water.", narration: "Roots absorb water.", audioCueSeconds: 4, imageIndex: null },
@@ -192,7 +192,7 @@ test("widget plays one lesson track and changes slides at its cue times", async 
   await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
   assert.equal(playCalls, 1);
   const audio = document.querySelector("#lesson-audio");
-  assert.equal(audio.src, "https://lesson.example/api/speech/whole-lesson");
+  assert.equal(audio.src, "https://lesson.example/api/assets/whole-lesson");
   Object.defineProperty(audio, "currentTime", { configurable: true, value: 4 });
   audio.dispatchEvent(new dom.window.Event("timeupdate"));
   await new Promise((resolve) => dom.window.setTimeout(resolve, 0));

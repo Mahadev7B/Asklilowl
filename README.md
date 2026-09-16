@@ -11,7 +11,7 @@ AskLilOwl turns a question into an interactive visual lesson inside ChatGPT. Thi
 
 AskLilOwl does **not** select a ChatGPT model. It uses whichever model ChatGPT is currently running or routes to for the conversation. There is also no AskLilOwl `Thinking` mode setting: reasoning controls belong to the ChatGPT host, when the host exposes them, and should not be duplicated in this plugin.
 
-The host ChatGPT model writes the lesson and supplies ChatGPT-managed educational images through `_meta["openai/fileParams"]`. AskLilOwl narrates each visible slide description verbatim. After the learner presses Start lesson, the server sends that combined lesson text once to OpenAI's Speech API and streams one AI-generated `nova` voice track at 0.9× while the widget advances through slide-level cues. API credentials remain server-side; images and quiz answers are not sent for narration, and generated audio is not retained in an application database.
+The host ChatGPT model writes the lesson and supplies one ChatGPT-managed educational image per slide through `_meta["openai/fileParams"]`. AskLilOwl validates that complete set, then sends the combined visible slide text once to OpenAI's Speech API before returning the lesson. The widget plays one AI-generated `nova` voice track at 0.9× while it advances through slide-level cues after the learner presses Start lesson. API credentials remain server-side; AskLilOwl never calls an image API, images and quiz answers are not sent for narration, and generated audio is retained only in short-lived server memory.
 
 ## User experience
 

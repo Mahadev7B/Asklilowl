@@ -90,6 +90,16 @@ test("buildLesson preserves production lesson context and maps images to slides"
         file_name: "bird.png",
         mime_type: "image/png",
       },
+      {
+        file_id: "file_lift",
+        file_name: "lift.png",
+        mime_type: "image/png",
+      },
+      {
+        file_id: "file_feathers",
+        file_name: "feathers.png",
+        mime_type: "image/png",
+      },
     ],
   });
 
@@ -106,12 +116,12 @@ test("buildLesson preserves production lesson context and maps images to slides"
   ]);
   assert.equal(lesson.images[0].fileId, "file_bird");
   assert.equal(lesson.slides[0].imageIndex, 0);
-  assert.equal(lesson.slides[1].imageIndex, 0);
-  assert.equal(lesson.slides[2].imageIndex, 0);
+  assert.equal(lesson.slides[1].imageIndex, 1);
+  assert.equal(lesson.slides[2].imageIndex, 2);
 });
 
-test("buildLesson reuses supplied images so every slide has a visual", () => {
-  const lesson = buildLesson({
+test("buildLesson rejects a production lesson without one ChatGPT image per slide", () => {
+  assert.throws(() => buildLesson({
     topic: "How rainbows form",
     title: "Rainbow science",
     audience: "young learner",
@@ -123,9 +133,7 @@ test("buildLesson reuses supplied images so every slide has a visual", () => {
     ],
     quiz: [{ question: "What bends light?", choices: ["Raindrops", "Sand"], answerIndex: 0 }],
     images: [{ file_id: "file_rainbow", file_name: "rainbow.png" }],
-  });
-
-  assert.deepEqual(lesson.slides.map((slide) => slide.imageIndex), [0, 0, 0]);
+  }), /AskLilOwl requires one image per slide before it can show a lesson/);
 });
 
 test("buildLesson rejects a quiz answer outside the choices array", () => {
@@ -166,11 +174,16 @@ test("buildLesson narrates the visible slide description verbatim", () => {
       { id: "two", title: "Ingredients", body: "Plants use water and carbon dioxide.", narration: "This legacy narration must not replace the visible description." },
       { id: "three", title: "Sugar", body: "The plant stores energy in sugar." },
     ],
+    images: [
+      { file_id: "file_light", download_url: "https://files.example/light.png" },
+      { file_id: "file_ingredients", download_url: "https://files.example/ingredients.png" },
+      { file_id: "file_sugar", download_url: "https://files.example/sugar.png" },
+    ],
     quiz: [{ question: "What captures light?", choices: ["Leaves", "Roots"], answerIndex: 0 }],
   }, { speechService });
   assert.equal(lesson.slides[0].narration, "Leaves capture sunlight.");
   assert.equal(lesson.slides[1].narration, "Plants use water and carbon dioxide.");
-  assert.match(lesson.audioUrl, /^https:\/\/lesson\.example\/api\/speech\//);
+  assert.equal(lesson.audioUrl, null);
   assert.equal(lesson.slides[0].audioCueSeconds, 0);
   assert.ok(lesson.slides[1].audioCueSeconds > lesson.slides[0].audioCueSeconds);
   assert.equal("audioUrl" in lesson.slides[0], false);

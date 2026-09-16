@@ -55,7 +55,7 @@ export function buildLesson(args, { isDemo = false, speechService = null, images
   }
 
   const images = normalizeImages(preparedImages ?? args.images);
-  if (!isDemo && preparedImages && images.length !== args.slides.length) {
+  if (!isDemo && images.length !== args.slides.length) {
     throw new RangeError("AskLilOwl requires one image per slide before it can show a lesson.");
   }
   let cueSeconds = 0;
@@ -91,7 +91,7 @@ export function buildLesson(args, { isDemo = false, speechService = null, images
     objectives: args.objectives ?? [],
     slideCount: slides.length,
     slides,
-    audioUrl: preparedAudioUrl ?? (speechService?.enabled ? speechService.createAudioUrl({ narration: lessonNarration, audience: args.audience }) : null),
+    audioUrl: preparedAudioUrl ?? null,
     narrationDurationEstimateSeconds: cueSeconds,
     quiz: args.quiz,
     sources: args.sources ?? [],
