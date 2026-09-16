@@ -156,7 +156,6 @@ export function createAskLilOwlServer({
       },
       _meta: {
         ui: { resourceUri: LESSON_URI },
-        "openai/fileParams": ["images"],
       },
     },
     async (args) => {

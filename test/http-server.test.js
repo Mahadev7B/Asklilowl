@@ -131,7 +131,7 @@ test("the host-facing lesson instruction requires safe educational behavior", as
   assert.match(description, /do not ask the user to choose an audience/i);
 });
 
-test("the lesson tool declares its image field as a ChatGPT file parameter", async (t) => {
+test("the lesson tool exposes images as ordinary data instead of a file-upload parameter", async (t) => {
   const { server, origin } = await startServer({ demoMode: false });
   const client = new Client({ name: "asklilowl-file-parameter-test", version: "1.0.0" });
   const transport = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`));
@@ -140,7 +140,10 @@ test("the lesson tool declares its image field as a ChatGPT file parameter", asy
 
   const tools = await client.listTools();
   const lessonTool = tools.tools.find((tool) => tool.name === "create_lesson");
-  assert.deepEqual(lessonTool?._meta?.["openai/fileParams"], ["images"]);
+  assert.ok(lessonTool);
+  assert.equal(Object.hasOwn(lessonTool._meta, "openai/fileParams"), false);
+  assert.equal(lessonTool.inputSchema.properties.images.type, "array");
+  assert.equal(lessonTool._meta.ui.resourceUri, "ui://asklilowl/lesson.html");
 });
 
 test("the lesson widget declares its stable public origin for standard and ChatGPT clients", async (t) => {
