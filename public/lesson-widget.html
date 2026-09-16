@@ -399,7 +399,7 @@
       img.referrerPolicy = "no-referrer";
       img.addEventListener("error", () => {
         if (token === visualRenderToken) {
-          showImageFallback(slide, "The illustration could not be displayed.");
+          showErrorState("A required lesson image could not be displayed. Please ask ChatGPT to create the lesson again.");
         }
       });
       visualEl.replaceChildren(img);

@@ -94,9 +94,45 @@ test("widget renders a lesson and exposes semantic progress navigation", async (
   assert.equal(document.querySelectorAll(".dot").length, 3);
   assert.equal(document.querySelector(".dot").getAttribute("aria-current"), "step");
 
+  await deliver(dom, lessonResult({
+    slides: [
+      { id: "one", number: 1, title: "Wings", body: "Wings push air.", imageIndex: 0 },
+      { id: "two", number: 2, title: "Lift", body: "Lift pushes up.", imageIndex: 1 },
+      { id: "three", number: 3, title: "Steering", body: "Tails steer.", imageIndex: 2 },
+    ],
+    images: [
+      { index: 0, fileId: "file_one", url: "https://files.example/one.png" },
+      { index: 1, fileId: "file_two", url: "https://files.example/two.png" },
+      { index: 2, fileId: "file_three", url: "https://files.example/three.png" },
+    ],
+  }));
+  assert.equal(document.querySelector("#visual img").src, "https://files.example/one.png");
+
   document.querySelector("#next").click();
   assert.equal(document.querySelector("#counter").textContent, "Slide 2 of 3");
   assert.equal(document.querySelector("#progress-shell").getAttribute("aria-valuenow"), "2");
+});
+
+test("widget hides the entire lesson when a required slide image cannot load", async (t) => {
+  const { dom } = await loadWidget();
+  t.after(() => dom.window.close());
+  await deliver(dom, lessonResult({
+    slides: [
+      { id: "one", number: 1, title: "Wings", body: "Wings push air.", imageIndex: 0 },
+      { id: "two", number: 2, title: "Lift", body: "Lift pushes up.", imageIndex: 1 },
+      { id: "three", number: 3, title: "Steering", body: "Tails steer.", imageIndex: 2 },
+    ],
+    images: [
+      { index: 0, fileId: "file_one", url: "https://files.example/one.png" },
+      { index: 1, fileId: "file_two", url: "https://files.example/two.png" },
+      { index: 2, fileId: "file_three", url: "https://files.example/three.png" },
+    ],
+  }));
+  dom.window.document.querySelector("#visual img").dispatchEvent(new dom.window.Event("error"));
+  await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
+  assert.equal(dom.window.document.querySelector("#lesson").hidden, true);
+  assert.equal(dom.window.document.querySelector("#empty").hidden, false);
+  assert.match(dom.window.document.querySelector("#empty-message").textContent, /image could not be displayed/i);
 });
 
 test("widget restores non-sensitive progress for the same lesson", async (t) => {

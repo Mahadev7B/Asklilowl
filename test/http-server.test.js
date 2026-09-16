@@ -127,6 +127,18 @@ test("the host-facing lesson instruction requires safe educational behavior", as
   assert.match(description, /do not ask the user to choose an audience/i);
 });
 
+test("the lesson tool declares its image field as a ChatGPT file parameter", async (t) => {
+  const { server, origin } = await startServer({ demoMode: false });
+  const client = new Client({ name: "asklilowl-file-parameter-test", version: "1.0.0" });
+  const transport = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`));
+  await client.connect(transport);
+  t.after(async () => { await client.close(); await stopServer(server); });
+
+  const tools = await client.listTools();
+  const lessonTool = tools.tools.find((tool) => tool.name === "create_lesson");
+  assert.deepEqual(lessonTool?._meta?.["openai/fileParams"], ["images"]);
+});
+
 test("the lesson widget declares its stable public origin for standard and ChatGPT clients", async (t) => {
   const publicOrigin = "https://asklilowl-chatgpt.onrender.com";
   const { server, origin } = await startServer({
