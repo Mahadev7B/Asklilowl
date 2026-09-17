@@ -98,25 +98,32 @@ test("source links must use HTTP or HTTPS", () => {
   assert.equal(lessonInputSchema.safeParse(input).success, false);
 });
 
-test("image inputs are accepted at the MCP boundary for diagnostic logging", () => {
-  const unsafe = validInput();
-  unsafe.images = "javascript:alert(1)";
-  assert.equal(lessonInputSchema.safeParse(unsafe).success, true);
+test("MCP image input schema accepts only explicit image objects", () => {
+  for (const image of [
+    { download_url: "https://files.example/bird.png" },
+    { file_id: "file_bird" },
+    { file_id: "file_bird", download_url: "https://files.example/bird.png" },
+  ]) {
+    const input = validInput();
+    input.images = input.slides.map(() => ({ ...image }));
+    assert.equal(lessonInputSchema.safeParse(input).success, true);
+  }
 
-  const inline = validInput();
-  inline.images = "data:image/png;base64,AAAA";
-  assert.equal(lessonInputSchema.safeParse(inline).success, true);
-
-  const file = validInput();
-  file.images = "file_abc123";
-  assert.equal(lessonInputSchema.safeParse(file).success, true);
-
-  const missingDownloadUrl = validInput();
-  missingDownloadUrl.images = [{ file_id: "file_abc123" }];
-  assert.equal(lessonInputSchema.safeParse(missingDownloadUrl).success, true);
+  for (const images of [
+    "file_abc123",
+    "https://files.example/bird.png",
+    { download_url: "https://files.example/bird.png" },
+    [{}],
+    [{ url: "https://files.example/bird.png" }],
+    [{ download_url: "data:image/png;base64,AAAA" }],
+  ]) {
+    const input = validInput();
+    input.images = images;
+    assert.equal(lessonInputSchema.safeParse(input).success, false);
+  }
 });
 
-test("strict validation still rejects malformed images after boundary logging", () => {
+test("strict validation rejects malformed image objects", () => {
   const missingReference = validInput();
   missingReference.images = [{}];
   assert.throws(() => validateStrictLessonInput(missingReference), /file_id or download_url/i);
