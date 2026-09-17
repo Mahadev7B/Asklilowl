@@ -44,3 +44,12 @@ These cases remain “Not run” until they are observed inside ChatGPT Develope
 - Result: the lesson was withheld atomically because one required Wikimedia Commons search returned HTTP 429 while other slide searches succeeded.
 - Voice cost: no narration request was made because image preparation did not complete.
 - Follow-up: add bounded 429 retry/backoff and reduce public-image search concurrency before Test 16.
+
+## Test 16 — failed
+
+- Question: `How do bridges stay up?`
+- Build: `c6238ca` (`Recover from temporary public image rate limits`).
+- Result: two concurrent Wikimedia Commons search streams received HTTP 429 and retried in lockstep; both exhausted the bounded retries, so the complete lesson was withheld atomically.
+- Voice cost: no narration request was made because image preparation did not complete.
+- API credit balance: `$2.51` before and `$2.51` after the test.
+- Follow-up: serialize public-image discovery to one search stream while retaining bounded 429 retry/backoff before Test 17.

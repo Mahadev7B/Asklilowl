@@ -30,7 +30,7 @@ The user does not need to configure a model inside AskLilOwl. The widget communi
 
 The production tool. It receives a finished lesson with 3–20 slides, an audience level, learning objectives, a quiz, optional source links, concrete slide image prompts, and optional attributed public-image candidates.
 
-Production does not trust attribution supplied by the host. It re-fetches official Commons metadata for a suitable supplied candidate or replaces it through public search. Search is bounded to two concurrent slide lookups, retries temporary Wikimedia rate limits with bounded backoff, uses at most three progressively simplified subject queries per slide, and examines 12 results per query; an unrelated result is rejected even when its license is acceptable.
+Production does not trust attribution supplied by the host. It re-fetches official Commons metadata for a suitable supplied candidate or replaces it through public search. Search is serialized to one slide lookup at a time, retries temporary Wikimedia rate limits with bounded backoff, uses at most three progressively simplified subject queries per slide, and examines 12 results per query; an unrelated result is rejected even when its license is acceptable.
 
 Lesson length is dynamic. Typical guidance is 4–5 slides for a quick topic, 6–8 for a standard topic, 9–12 for a complex topic, and up to 20 for a deep dive. The host model should use only the number needed to teach the topic clearly.
 
