@@ -57,7 +57,7 @@ function estimateNarrationSeconds(narration) {
   return Math.max(4, Math.ceil(wordCount / 2.5) + 1);
 }
 
-export function buildLesson(args, { isDemo = false, speechService = null, images: preparedImages, audioUrl: preparedAudioUrl, voice: preparedVoice } = {}) {
+export function buildLesson(args, { isDemo = false, speechService = null, images: preparedImages, audioUrl: preparedAudioUrl, voice: preparedVoice, visualMode } = {}) {
   validateLessonContent(args);
 
   const images = normalizeImages(preparedImages ?? args.images);
@@ -98,6 +98,7 @@ export function buildLesson(args, { isDemo = false, speechService = null, images
     quiz: args.quiz,
     sources: args.sources ?? [],
     images,
+    ...(visualMode === undefined ? {} : { visualMode }),
     isDemo,
     voice: preparedVoice ?? speechService?.metadata?.() ?? disabledVoice,
   });

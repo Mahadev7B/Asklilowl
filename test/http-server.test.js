@@ -92,8 +92,8 @@ test("HTTP boundary rejects declared MCP bodies larger than two MiB", async (t) 
 
 test("production and demo MCP servers expose only their intended tools", async (t) => {
   for (const [demoMode, expectedTools] of [
-    [false, ["prepare_lesson", "create_lesson"]],
-    [true, ["prepare_lesson", "create_lesson", "preview_demo_lesson"]],
+    [false, ["prepare_lesson", "create_lesson", "create_diagram_lesson"]],
+    [true, ["prepare_lesson", "create_lesson", "create_diagram_lesson", "preview_demo_lesson"]],
   ]) {
     const { server, origin } = await startServer({
       demoMode,

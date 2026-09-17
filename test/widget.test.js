@@ -156,6 +156,21 @@ test("widget hides the entire lesson when a required slide image cannot load", a
   assert.match(dom.window.document.querySelector("#empty-message").textContent, /https:\/\/files\.example/);
 });
 
+test("widget labels diagram lessons without inserting SVG and still fails the whole lesson on image rejection", async (t) => {
+  const { dom } = await loadWidget();
+  t.after(() => dom.window.close());
+  await deliver(dom, lessonResult({ visualMode: "diagram" }));
+  const document = dom.window.document;
+  assert.equal(document.querySelector("#diagram-notice").textContent, "Illustrative diagrams");
+  assert.equal(document.querySelector("#diagram-notice").hidden, false);
+  assert.equal(document.querySelectorAll("svg").length, 0);
+
+  document.querySelector("#visual img").dispatchEvent(new dom.window.Event("error"));
+  await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
+  assert.equal(document.querySelector("#lesson").hidden, true);
+  assert.equal(document.querySelector("#empty").hidden, false);
+});
+
 test("widget hides the entire lesson when a required slide image is absent", async (t) => {
   const { dom } = await loadWidget();
   t.after(() => dom.window.close());

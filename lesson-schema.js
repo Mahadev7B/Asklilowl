@@ -252,6 +252,7 @@ export const lessonOutputSchema = z.object({
   quiz: z.array(quizQuestionSchema).min(1).max(INPUT_LIMITS.quiz),
   sources: z.array(sourceSchema).max(INPUT_LIMITS.sources),
   images: z.array(normalizedImageSchema).max(INPUT_LIMITS.images),
+  visualMode: z.enum(["native", "diagram"]).optional(),
   isDemo: z.boolean(),
   voice: voiceSchema,
 });

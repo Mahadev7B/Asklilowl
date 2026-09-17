@@ -166,6 +166,7 @@
       <div class="header-card">
         <div class="top-row">
           <span id="demo-notice" class="demo-notice" hidden>Demo content</span>
+          <span id="diagram-notice" class="demo-notice" hidden></span>
           <span id="depth" class="depth"></span>
         </div>
         <div id="topic" class="topic"></div>
@@ -246,6 +247,7 @@
     const summaryEl = $("#summary");
     const objectivesEl = $("#objectives");
     const demoNoticeEl = $("#demo-notice");
+    const diagramNoticeEl = $("#diagram-notice");
     const depthEl = $("#depth");
     const visualEl = $("#visual");
     const counterEl = $("#counter");
@@ -424,6 +426,8 @@
 
     const renderLessonDetails = () => {
       demoNoticeEl.hidden = !lesson.isDemo;
+      diagramNoticeEl.textContent = lesson.visualMode === "diagram" ? "Illustrative diagrams" : "";
+      diagramNoticeEl.hidden = lesson.visualMode !== "diagram";
       objectivesEl.replaceChildren();
       if (lesson.objectives?.length) {
         const heading = document.createElement("strong");
@@ -683,6 +687,7 @@
       quizEl.hidden = true;
       sourcesEl.hidden = true;
       imageCreditsEl.hidden = true;
+      diagramNoticeEl.hidden = true;
       disclosureEl.hidden = true;
       emptyEl.hidden = false;
       emptyEl.classList.add("error");
