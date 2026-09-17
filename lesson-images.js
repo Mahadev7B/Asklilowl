@@ -27,10 +27,9 @@ function isPublicAddress(address) {
   }
 }
 
-function preferIpv4(records) {
-  return [...records].sort((left, right) =>
-    Number(left.family !== 4) - Number(right.family !== 4)
-  );
+function preferredConnectionRecords(records) {
+  const ipv4 = records.filter((record) => record.family === 4);
+  return ipv4.length ? ipv4 : [...records];
 }
 
 async function withTimeout(promise, timeoutMs, message) {
@@ -204,7 +203,7 @@ export function createLessonImageService({
     for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
-      const dispatcher = dispatcherFactory(target.url, preferIpv4(target.records));
+      const dispatcher = dispatcherFactory(target.url, preferredConnectionRecords(target.records));
       try {
         const response = await fetchImpl(target.url, {
           redirect: "manual",

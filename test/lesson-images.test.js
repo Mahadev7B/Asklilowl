@@ -266,10 +266,7 @@ test("image fetch uses a dispatcher pinned to the validated public DNS result", 
 
   assert.deepEqual(dispatcherInput, {
     hostname: "images.example",
-    records: [
-      { address: "8.8.4.4", family: 4 },
-      { address: "2001:4860:4860::8844", family: 6 },
-    ],
+    records: [{ address: "8.8.4.4", family: 4 }],
   });
   assert.equal(fetchDispatcher, pinned);
 });

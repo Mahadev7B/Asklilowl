@@ -115,10 +115,9 @@ function isPublicAddress(address) {
   }
 }
 
-function preferIpv4(records) {
-  return [...records].sort((left, right) =>
-    Number(left.family !== 4) - Number(right.family !== 4)
-  );
+function preferredConnectionRecords(records) {
+  const ipv4 = records.filter((record) => record.family === 4);
+  return ipv4.length ? ipv4 : [...records];
 }
 
 async function withTimeout(promise, timeoutMs, message) {
@@ -272,7 +271,7 @@ export function createWikimediaImageProvider({
       if (!records.length || records.some((record) => !isPublicAddress(record.address))) {
         throw new Error("Public image search host is not publicly reachable.");
       }
-      dispatcher = dispatcherFactory(apiUrl, preferIpv4(records));
+      dispatcher = dispatcherFactory(apiUrl, preferredConnectionRecords(records));
       const candidates = [];
       const seenSources = new Set();
       const rejectionCounts = { unsupported: 0, restrictedLicense: 0, unrelated: 0 };
@@ -389,7 +388,7 @@ export function createWikimediaImageProvider({
       if (!records.length || records.some((record) => !isPublicAddress(record.address))) {
         throw new Error("Public image search host is not publicly reachable.");
       }
-      dispatcher = dispatcherFactory(apiUrl, preferIpv4(records));
+      dispatcher = dispatcherFactory(apiUrl, preferredConnectionRecords(records));
       apiUrl.search = new URLSearchParams({
         action: "query",
         format: "json",
