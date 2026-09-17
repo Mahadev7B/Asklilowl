@@ -37,3 +37,10 @@ AskLilOwl is connected to ChatGPT in Developer Mode as app `asdk_app_6aa84ac8523
 | Unsupported audio | Not run | Not applicable | Not applicable | Not run | Pending |
 
 These cases remain “Not run” until they are observed inside ChatGPT Developer Mode. The successful endpoint/MCP checks above do not count as ChatGPT host-model or rendered-widget passes.
+
+## Test 15 — failed
+
+- Question: `How do bridges stay up?`
+- Result: the lesson was withheld atomically because one required Wikimedia Commons search returned HTTP 429 while other slide searches succeeded.
+- Voice cost: no narration request was made because image preparation did not complete.
+- Follow-up: add bounded 429 retry/backoff and reduce public-image search concurrency before Test 16.

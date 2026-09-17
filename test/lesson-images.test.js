@@ -155,7 +155,6 @@ test("public image discovery bounds concurrent provider lookups", async () => {
   let maximumActive = 0;
   const service = createLessonImageService({
     lookupImpl: publicLookup,
-    maxConcurrentSearches: 3,
     publicImageProvider: {
       async find(request) {
         active += 1;
@@ -182,7 +181,7 @@ test("public image discovery bounds concurrent provider lookups", async () => {
   const prepared = await service.prepareForLesson({ topic: "Many subjects", audience: "general", slides });
 
   assert.equal(prepared.length, 12);
-  assert.ok(maximumActive <= 3, `expected at most 3 concurrent lookups, saw ${maximumActive}`);
+  assert.ok(maximumActive <= 2, `expected at most 2 concurrent lookups, saw ${maximumActive}`);
 });
 
 test("image discovery failure commits no staged lesson images", async () => {

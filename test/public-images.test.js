@@ -119,6 +119,43 @@ test("Wikimedia provider returns an attributed PNG preview for a relevant SVG", 
   assert.equal(result.source_organization, "Wikimedia Commons");
 });
 
+test("Wikimedia provider retries a temporary 429 before rejecting the slide image", async () => {
+  let fetchCalls = 0;
+  const waits = [];
+  const provider = createWikimediaImageProvider({
+    lookupImpl: publicLookup,
+    sleepImpl: async (milliseconds) => { waits.push(milliseconds); },
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      if (fetchCalls === 1) {
+        return new Response("rate limited", { status: 429, headers: { "retry-after": "1" } });
+      }
+      return Response.json({
+        query: {
+          pages: [{
+            title: "File:Regular octagon diagram.png",
+            imageinfo: [{
+              mime: "image/png",
+              thumburl: "https://upload.wikimedia.org/regular-octagon.png",
+              descriptionurl: "https://commons.wikimedia.org/wiki/File:Regular_octagon_diagram.png",
+              extmetadata: {
+                LicenseShortName: { value: "CC0 1.0" },
+                ImageDescription: { value: "Regular octagon divided into eight equal triangles" },
+              },
+            }],
+          }],
+        },
+      });
+    },
+  });
+
+  const result = await provider.find(buildVisualRequest(visualInput));
+
+  assert.equal(fetchCalls, 2);
+  assert.deepEqual(waits, [1000]);
+  assert.equal(result.download_url, "https://upload.wikimedia.org/regular-octagon.png");
+});
+
 test("Wikimedia provider falls back from a verbose prompt to its core subject", async () => {
   const queries = [];
   const events = [];

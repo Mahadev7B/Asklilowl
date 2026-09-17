@@ -11,6 +11,7 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_LESSON_IMAGE_BYTES = 20 * 1024 * 1024;
 const DEFAULT_MAX_CACHE_BYTES = 32 * 1024 * 1024;
 const DEFAULT_MAX_CONCURRENT_DOWNLOADS = 4;
+const DEFAULT_MAX_CONCURRENT_SEARCHES = 2;
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/png",
   "image/jpeg",
@@ -160,7 +161,7 @@ export function createLessonImageService({
   maxLessonImageBytes = Number(process.env.LESSON_IMAGE_TOTAL_MAX_BYTES ?? DEFAULT_MAX_LESSON_IMAGE_BYTES),
   maxCacheBytes = Number(process.env.LESSON_IMAGE_CACHE_MAX_BYTES ?? DEFAULT_MAX_CACHE_BYTES),
   maxConcurrentDownloads = DEFAULT_MAX_CONCURRENT_DOWNLOADS,
-  maxConcurrentSearches = DEFAULT_MAX_CONCURRENT_DOWNLOADS,
+  maxConcurrentSearches = DEFAULT_MAX_CONCURRENT_SEARCHES,
   maxRedirects = DEFAULT_MAX_REDIRECTS,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   fetchImpl = undiciFetch,

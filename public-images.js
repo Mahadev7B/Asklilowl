@@ -5,6 +5,9 @@ import { Agent, fetch as undiciFetch } from "undici";
 
 const WIKIMEDIA_API = "https://commons.wikimedia.org/w/api.php";
 const DEFAULT_TIMEOUT_MS = 8_000;
+const DEFAULT_RATE_LIMIT_RETRIES = 2;
+const DEFAULT_RETRY_BASE_MS = 400;
+const MAX_RETRY_DELAY_MS = 2_000;
 const MAX_API_RESPONSE_BYTES = 1024 * 1024;
 const SEARCH_RESULT_LIMIT = 12;
 const RASTER_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -220,6 +223,21 @@ function safeHttps(value) {
   }
 }
 
+function retryDelayMs(response, retryIndex, retryBaseMs) {
+  const raw = response.headers.get("retry-after");
+  if (raw) {
+    const seconds = Number(raw);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.min(MAX_RETRY_DELAY_MS, Math.round(seconds * 1_000));
+    }
+    const date = Date.parse(raw);
+    if (Number.isFinite(date)) {
+      return Math.min(MAX_RETRY_DELAY_MS, Math.max(0, date - Date.now()));
+    }
+  }
+  return Math.min(MAX_RETRY_DELAY_MS, retryBaseMs * (2 ** retryIndex));
+}
+
 export function normalizeWikimediaCandidate(page, position = 0) {
   const info = page?.imageinfo?.[0];
   if (!info) return null;
@@ -254,7 +272,27 @@ export function createWikimediaImageProvider({
   logger = console,
   lookupImpl = lookup,
   dispatcherFactory = createPinnedDispatcher,
+  rateLimitRetries = DEFAULT_RATE_LIMIT_RETRIES,
+  retryBaseMs = DEFAULT_RETRY_BASE_MS,
+  sleepImpl = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 } = {}) {
+  async function fetchWithRateLimitRetry(url, options) {
+    for (let retryIndex = 0; ; retryIndex += 1) {
+      const response = await fetchImpl(url, options);
+      if (response.status !== 429 || retryIndex >= rateLimitRetries) return response;
+      const delay = retryDelayMs(response, retryIndex, retryBaseMs);
+      await response.body?.cancel().catch(() => {});
+      logger.info?.({
+        event: "public_image_search_retry",
+        provider: "wikimedia_commons",
+        status: 429,
+        retryNumber: retryIndex + 1,
+        delayMs: delay,
+      });
+      await sleepImpl(delay);
+    }
+  }
+
   async function find(request) {
     const startedAt = Date.now();
     const queryHash = createHash("sha256").update(String(request.query ?? "")).digest("hex").slice(0, 12);
@@ -293,7 +331,7 @@ export function createWikimediaImageProvider({
           iiurlwidth: "1200",
           origin: "*",
         }).toString();
-        const response = await fetchImpl(url, {
+        const response = await fetchWithRateLimitRetry(url, {
           dispatcher,
           redirect: "manual",
           signal: controller.signal,
@@ -408,7 +446,7 @@ export function createWikimediaImageProvider({
         iiurlwidth: "1200",
         origin: "*",
       }).toString();
-      const response = await fetchImpl(apiUrl, {
+      const response = await fetchWithRateLimitRetry(apiUrl, {
         dispatcher,
         redirect: "manual",
         signal: controller.signal,
