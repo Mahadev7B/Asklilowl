@@ -124,6 +124,15 @@ test("widget renders a lesson and exposes semantic progress navigation", async (
   assert.equal(document.querySelector("#progress-shell").getAttribute("aria-valuenow"), "2");
 });
 
+test("widget keeps the complete educational image visible inside its frame", async (t) => {
+  const { dom } = await loadWidget();
+  t.after(() => dom.window.close());
+  await deliver(dom, lessonResult());
+
+  const image = dom.window.document.querySelector("#visual img");
+  assert.equal(dom.window.getComputedStyle(image).objectFit, "contain");
+});
+
 test("widget hides the entire lesson when a required slide image cannot load", async (t) => {
   const { dom } = await loadWidget();
   t.after(() => dom.window.close());

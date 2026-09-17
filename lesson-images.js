@@ -170,6 +170,7 @@ export function createLessonImageService({
   idFactory = randomUUID,
   now = Date.now,
   publicImageProvider = null,
+  logger = console,
 } = {}) {
   const origin = publicOrigin.replace(/\/+$/, "");
   requirePositiveNumber("assetTtlSeconds", assetTtlSeconds);
@@ -341,6 +342,24 @@ export function createLessonImageService({
           }
           selected[index] = found;
         } catch (error) {
+          const fallback = [...selected].reverse().find((image) => image && isAllowedPublicLicense(image));
+          if (error?.status === 429 && fallback) {
+            selected[index] = fallback;
+            let reusedImageCount = 1;
+            while (nextSearchIndex < slides.length) {
+              selected[nextSearchIndex] = fallback;
+              nextSearchIndex += 1;
+              reusedImageCount += 1;
+            }
+            logger.info?.({
+              event: "public_image_reuse_activated",
+              reason: "provider_rate_limit",
+              status: 429,
+              reusedImageCount,
+              selectedImageCount: selected.filter(Boolean).length,
+            });
+            continue;
+          }
           searchFailure ??= error;
         }
       }
@@ -348,7 +367,17 @@ export function createLessonImageService({
     const searchWorkerCount = Math.max(1, Math.min(maxConcurrentSearches, slides.length));
     await Promise.all(Array.from({ length: searchWorkerCount }, () => searchWorker()));
     if (searchFailure) throw searchFailure;
-    return prepareMany(selected);
+    const uniqueImages = [];
+    const uniqueIndexes = new Map();
+    const selectedIndexes = selected.map((image) => {
+      if (!uniqueIndexes.has(image)) {
+        uniqueIndexes.set(image, uniqueImages.length);
+        uniqueImages.push(image);
+      }
+      return uniqueIndexes.get(image);
+    });
+    const preparedUnique = await prepareMany(uniqueImages);
+    return selectedIndexes.map((index) => preparedUnique[index]);
   }
 
   function resolve(id) {

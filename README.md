@@ -30,7 +30,7 @@ The user does not need to configure a model inside AskLilOwl. The widget communi
 
 The production tool. It receives a finished lesson with 3–20 slides, an audience level, learning objectives, a quiz, optional source links, concrete slide image prompts, and optional attributed public-image candidates.
 
-Production does not trust attribution supplied by the host. It re-fetches official Commons metadata for a suitable supplied candidate or replaces it through public search. Search is serialized to one slide lookup at a time, paces Wikimedia API calls by 1.5 seconds, and retries temporary rate limits with bounded 2s/4s/8s backoff. It uses at most three progressively simplified subject queries per slide and examines 12 results per query. When a slide-specific visual is unavailable, the service makes one broader lesson-topic search under the same license, relevance, raster, and security checks; an unrelated result is rejected even when its license is acceptable.
+Production does not trust attribution supplied by the host. It re-fetches official Commons metadata for a suitable supplied candidate or replaces it through public search. Search is serialized to one slide lookup at a time, paces Wikimedia API calls by 1.5 seconds, and retries temporary rate limits with bounded 2s/4s/8s backoff. It uses at most three progressively simplified subject queries per slide and examines 12 results per query. When a slide-specific visual is unavailable, the service makes one broader lesson-topic search under the same license, relevance, raster, and security checks; an unrelated result is rejected even when its license is acceptable. If Wikimedia rate-limits the lesson after at least one licensed visual has already been verified, the remaining slides reuse that verified visual instead of losing the complete lesson. Reused assets are downloaded and cached only once.
 
 All public-image metadata is cleaned and bounded to the existing lesson contract before strict validation, so oversized third-party descriptions or credits cannot invalidate an otherwise usable image.
 
@@ -115,7 +115,7 @@ The package intentionally has no bundled model setting or `Thinking` control. Th
 
 The lesson contract sets explicit limits on text, slides, quiz questions, sources, and image descriptors. The server rejects declared MCP bodies over 2 MiB, validates HTTP(S) source links, applies conservative per-address rate limiting, emits secure HTTP headers, and declares the structured output schema used by the widget.
 
-The widget uses system typography, AA-oriented contrast, visible keyboard focus, semantic progress state, responsive layouts, dark mode, reduced-motion support, and session-only progress restoration. It stores no lesson content in an application database.
+The widget uses system typography, AA-oriented contrast, visible keyboard focus, semantic progress state, responsive layouts, dark mode, reduced-motion support, and session-only progress restoration. Educational visuals use a fixed responsive frame with `object-fit: contain`, so the complete diagram or photograph remains visible without destructive cropping. It stores no lesson content in an application database.
 
 ## Security
 

@@ -223,6 +223,78 @@ test("public image discovery bounds concurrent provider lookups", async () => {
   assert.ok(maximumActive <= 1, `expected serialized lookups, saw ${maximumActive}`);
 });
 
+test("image discovery reuses a verified lesson visual after a provider rate limit", async () => {
+  let findCalls = 0;
+  let fetchCalls = 0;
+  const service = createLessonImageService({
+    publicOrigin: "https://lesson.example",
+    lookupImpl: publicLookup,
+    logger: { info() {} },
+    publicImageProvider: {
+      async find(request) {
+        findCalls += 1;
+        if (findCalls === 2) {
+          const error = new Error("rate limited");
+          error.status = 429;
+          throw error;
+        }
+        return {
+          download_url: "https://upload.wikimedia.org/verified-bridge.png",
+          mime_type: "image/png",
+          source_page_url: "https://commons.wikimedia.org/wiki/File:Verified_bridge.png",
+          license_name: "CC0 1.0",
+          description: request.query,
+        };
+      },
+    },
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      return new Response(PNG_BYTES, { headers: { "content-type": "image/png" } });
+    },
+  });
+
+  const prepared = await service.prepareForLesson({
+    topic: "Bridge engineering",
+    audience: "general learner",
+    slides: [
+      { title: "Deck", body: "The deck carries traffic.", imagePrompt: "bridge deck" },
+      { title: "Beams", body: "Beams resist bending.", imagePrompt: "bridge beams" },
+      { title: "Piers", body: "Piers carry loads downward.", imagePrompt: "bridge piers" },
+    ],
+  });
+
+  assert.equal(findCalls, 2);
+  assert.equal(fetchCalls, 1);
+  assert.equal(prepared.length, 3);
+  assert.equal(new Set(prepared.map((image) => image.download_url)).size, 1);
+  assert.ok(prepared.every((image) => image.license_name === "CC0 1.0"));
+});
+
+test("image discovery stays atomic when rate limited before any visual is verified", async () => {
+  let fetchCalls = 0;
+  const service = createLessonImageService({
+    lookupImpl: publicLookup,
+    publicImageProvider: {
+      async find() {
+        const error = new Error("rate limited");
+        error.status = 429;
+        throw error;
+      },
+    },
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      return new Response(PNG_BYTES, { headers: { "content-type": "image/png" } });
+    },
+  });
+
+  await assert.rejects(service.prepareForLesson({
+    topic: "Bridge engineering",
+    audience: "general learner",
+    slides: [{ title: "Deck", body: "The deck carries traffic.", imagePrompt: "bridge deck" }],
+  }), /rate limited/i);
+  assert.equal(fetchCalls, 0);
+});
+
 test("image discovery failure commits no staged lesson images", async () => {
   let finds = 0;
   const service = createLessonImageService({

@@ -92,3 +92,13 @@ These cases remain “Not run” until they are observed inside ChatGPT Develope
 - Voice cost: no narration request was made because strict image metadata validation failed before TTS.
 - API credit balance: `$2.51` before and `$2.51` after the test.
 - Follow-up: clean and bound Wikimedia metadata to the existing lesson schema before Test 21.
+
+## Test 21 — failed
+
+- Question: `How do bridges stay up?`
+- Build: `9ffed4e` (`Bound public image metadata`).
+- Entry path: AskLilOwl plugin page → **Try in chat** → **Chat** mode; the user question did not contain a manual app tag.
+- Result: the metadata validation failure from Test 20 was fixed and several licensed image searches succeeded. A later Wikimedia Commons lookup remained HTTP 429 after three bounded eight-second waits, so the complete lesson was withheld atomically.
+- Voice cost: no narration request was made because image preparation did not complete.
+- API credit balance: `$2.51` before and `$2.51` after the test.
+- Follow-up: after at least one licensed visual has been verified, reuse that visual for remaining slides when Wikimedia rate-limits the lesson; preserve atomic failure when no verified visual exists.
