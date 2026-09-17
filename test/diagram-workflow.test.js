@@ -133,6 +133,25 @@ test("diagram validation and preparation failures never return a lesson or spend
   assert.doesNotMatch(JSON.stringify(logs), /PRIVATE|Choose context|Compare prompts|Three prompt parts|https:\/\//);
 });
 
+test("unknown diagram-prefixed renderer errors are replaced with a fixed safe code", async (t) => {
+  let audioCalls = 0;
+  const logs = [];
+  const { server, client } = await connectServer({
+    diagramService: { renderMany: async () => { throw new Error("diagram_private_customer_label"); } },
+    imageService: createLessonImageService({ publicOrigin: "https://lesson.example" }),
+    audioService: { prepare: async () => { audioCalls += 1; } },
+    logger: { info: (value) => logs.push(value), error: (value) => logs.push(value) },
+  });
+  t.after(async () => { await client.close(); await server.close(); });
+
+  const result = await client.callTool({ name: "create_diagram_lesson", arguments: lessonArgs });
+  assert.equal(result.isError, true);
+  assert.equal("structuredContent" in result, false);
+  assert.equal(audioCalls, 0);
+  assert.equal(logs.at(-1).errorCode, "diagram_preparation_failed");
+  assert.doesNotMatch(JSON.stringify(logs), /private_customer_label|Choose context|https:\/\//);
+});
+
 test("malformed diagram input is rejected at the strict tool boundary", async (t) => {
   let audioCalls = 0;
   const { server, client } = await connectServer({ audioService: { prepare: async () => { audioCalls += 1; } } });

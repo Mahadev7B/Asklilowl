@@ -94,6 +94,17 @@ const STYLE_OPTIONS = Object.freeze([
 const FOLLOW_UP_GUIDANCE =
   "Answer follow-up questions conversationally, with clearer examples and gentle understanding checks when useful. Do not create another lesson, ask for a style, or spend narration credit for a follow-up. You may offer a separate new lesson when useful; require the user's consent, and only after they agree begin that new lesson by asking for a fresh style selection.";
 
+const SAFE_DIAGRAM_RENDERER_CODES = new Set([
+  "diagram_busy",
+  "diagram_invalid_input",
+  "diagram_invalid_png",
+  "diagram_lesson_timeout",
+  "diagram_lesson_too_large",
+  "diagram_render_failed",
+  "diagram_timeout",
+  "diagram_worker_failed",
+]);
+
 function lessonSuccessResult(lesson) {
   return {
     content: [{
@@ -117,7 +128,7 @@ function lessonErrorResult(error, { exposeValidation = true } = {}) {
 }
 
 function safeDiagramErrorCode(error) {
-  return /^diagram_[a-z_]+$/.test(error?.message ?? "")
+  return SAFE_DIAGRAM_RENDERER_CODES.has(error?.message)
     ? error.message
     : error?.name === "ZodError"
       ? "diagram_input_invalid"
