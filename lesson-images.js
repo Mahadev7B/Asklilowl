@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import ipaddr from "ipaddr.js";
-import { Agent } from "undici";
+import { Agent, fetch as undiciFetch } from "undici";
 import { buildVisualRequest, isAllowedPublicLicense } from "./public-images.js";
 
 const DEFAULT_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -163,7 +163,7 @@ export function createLessonImageService({
   maxConcurrentSearches = DEFAULT_MAX_CONCURRENT_DOWNLOADS,
   maxRedirects = DEFAULT_MAX_REDIRECTS,
   timeoutMs = DEFAULT_TIMEOUT_MS,
-  fetchImpl = fetch,
+  fetchImpl = undiciFetch,
   lookupImpl = lookup,
   dispatcherFactory = createPinnedDispatcher,
   idFactory = randomUUID,

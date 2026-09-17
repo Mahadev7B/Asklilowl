@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import ipaddr from "ipaddr.js";
-import { Agent } from "undici";
+import { Agent, fetch as undiciFetch } from "undici";
 
 const WIKIMEDIA_API = "https://commons.wikimedia.org/w/api.php";
 const DEFAULT_TIMEOUT_MS = 8_000;
@@ -249,7 +249,7 @@ export function normalizeWikimediaCandidate(page, position = 0) {
 }
 
 export function createWikimediaImageProvider({
-  fetchImpl = fetch,
+  fetchImpl = undiciFetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   logger = console,
   lookupImpl = lookup,
