@@ -81,10 +81,7 @@ const imageObjectSchema = z
     message: "Each image must include file_id or download_url.",
   });
 
-const receivedImagesSchema = z.preprocess(
-  (value) => value == null || Array.isArray(value) ? value : [value],
-  z.array(z.union([z.string(), z.object({}).passthrough()])).max(INPUT_LIMITS.images)
-);
+const receivedImagesSchema = z.array(imageObjectSchema).max(INPUT_LIMITS.images);
 
 export const lessonInputShape = {
   topic: boundedText("Topic", INPUT_LIMITS.topic).describe(
