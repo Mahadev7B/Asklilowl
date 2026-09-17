@@ -1,6 +1,25 @@
 # Safe diagram fallback for AskLilOwl
 
-Status: proposed design for user review. No implementation or deployment yet.
+Status: approved, including the September 17 lesson-style and follow-up addition. Implementation pending; not deployed.
+
+## Approved lesson-style and follow-up addition
+
+Before EVERY new lesson, ask the user to choose Auto / Default, Kid-friendly,
+Engineering / Technical, or Professional. Do not silently reuse the previous
+lesson's choice. The chosen style guides text, native image prompts or diagram
+content, narration wording, and quiz. Technical style does not imply advanced
+prior knowledge. No video generation or speech-provider configuration change.
+
+Use prepare_lesson as the preference gate: an optional lessonStyle selection
+returns workflow instructions; absence returns the four choices and a request
+to ask the user before generation. Keep the native final tool input unchanged.
+This is host workflow guidance, not a claim that the server can verify that a
+human was asked. Use existing audience/imagePrompt fields for final-tool context.
+
+Follow-up questions are answered conversationally, using clearer examples and
+gentle understanding checks when needed. Do not automatically create a lesson,
+ask style again, or spend narration credit for a follow-up. Offer a separate
+lesson when useful; only after agreement start the new-lesson style question.
 
 ## Approved direction
 
