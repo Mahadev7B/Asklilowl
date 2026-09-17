@@ -119,6 +119,7 @@ export function createAskLilOwlServer({
                 resourceDomains: [
                   publicOrigin,
                   "https://*.oaiusercontent.com",
+                  "https://d9-wret.s3.us-west-2.amazonaws.com",
                 ],
               },
             },
@@ -222,7 +223,7 @@ export function createAskLilOwlServer({
         inputSchema: {
           fixture: z
             .enum(DEMO_LESSON_IDS)
-            .describe("The built-in lesson fixture to preview in MCP Inspector."),
+            .describe("The built-in lesson fixture to preview in MCP Inspector UI testing."),
         },
         outputSchema: lessonOutputShape,
         annotations: {
