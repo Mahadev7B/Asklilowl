@@ -328,7 +328,26 @@ export function createAskLilOwlHttpServer({
         response.writeHead(410).end("Lesson asset unavailable");
         return;
       }
-      response.writeHead(200, { "content-type": asset.contentType, "content-length": String(asset.bytes.length), "cache-control": "no-store" });
+      const size = asset.bytes.length;
+      const headers = { "content-type": asset.contentType, "cache-control": "no-store", "accept-ranges": "bytes" };
+      // A single byte range lets the browser seek the cached narration without
+      // a new speech request. Ignore unsupported/malformed (including multi-) ranges.
+      const match = /^bytes=(\d*)-(\d*)$/.exec(request.headers.range ?? "");
+      if (match && (match[1] || match[2])) {
+        const suffix = match[1] === "";
+        const first = Number(match[1]);
+        const last = Number(match[2]);
+        const start = suffix ? Math.max(0, size - last) : first;
+        const end = suffix || !match[2] ? size - 1 : Math.min(last, size - 1);
+        if (!Number.isSafeInteger(first) || !Number.isSafeInteger(last) || start >= size || end < start || (suffix && last === 0)) {
+          response.writeHead(416, { ...headers, "content-range": `bytes */${size}`, "content-length": "0" }).end();
+          return;
+        }
+        response.writeHead(206, { ...headers, "content-range": `bytes ${start}-${end}/${size}`, "content-length": String(end - start + 1) });
+        response.end(asset.bytes.subarray(start, end + 1));
+        return;
+      }
+      response.writeHead(200, { ...headers, "content-length": String(size) });
       response.end(asset.bytes);
       return;
     }

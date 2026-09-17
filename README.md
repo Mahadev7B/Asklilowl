@@ -5,13 +5,15 @@ AskLilOwl turns a question into an interactive visual lesson inside ChatGPT. Thi
 ## How the production flow works
 
 1. The user enables AskLilOwl in ChatGPT and asks a question normally.
-2. The active ChatGPT model researches when needed, writes an audience-appropriate lesson, chooses its length, and describes the clearest teaching visual for each slide.
-3. ChatGPT calls `create_lesson` with the completed lesson, quiz, sources, and slide-specific image prompts.
-4. AskLilOwl finds commercially reusable educational visuals from Wikimedia Commons, validates and securely proxies every raster image, creates one narration track, and renders the complete lesson atomically.
+2. The active ChatGPT model calls `prepare_lesson`, researches when needed, writes an audience-appropriate lesson, and generates a native teaching image for each slide.
+3. ChatGPT calls `create_lesson` with the completed lesson, quiz, sources, and actual generated image files in slide order.
+4. AskLilOwl validates and temporarily caches those raster images, creates one narration track, and renders the complete lesson atomically.
+
+This is the intended workflow, not a guarantee of host orchestration. Native file transfer passed Test 24; plain-question generation failed in Chat in Tests 25 and 27. See the numbered test records in `submission/` for observed results rather than inferring readiness from offline tests.
 
 AskLilOwl does **not** select a ChatGPT model. It uses whichever model ChatGPT is currently running or routes to for the conversation. There is also no AskLilOwl `Thinking` mode setting: reasoning controls belong to the ChatGPT host, when the host exposes them, and should not be duplicated in this plugin.
 
-The host ChatGPT model writes the lesson and a concrete `imagePrompt` for each slide. AskLilOwl uses the official Wikimedia Commons API—never arbitrary webpage scraping—to choose a directly relevant Public Domain, CC0, CC BY, or CC BY-SA visual. SVG originals are converted through Wikimedia's official PNG preview and SVG bytes are never delivered to the widget. AskLilOwl securely proxies all raster images before sending the combined visible slide text once to OpenAI's Speech API. The widget plays one AI-generated `nova` voice track at 0.9× while it advances through slide-level cues after the learner presses Start lesson. API credentials remain server-side; AskLilOwl does not call a paid image-generation API, images and quiz answers are not sent for narration, and generated media is retained only in short-lived server memory.
+The host ChatGPT model writes the lesson and generates the images natively. AskLilOwl does not search Wikimedia or substitute public images in production. It securely proxies the supplied raster images before sending the combined visible slide text once to OpenAI's Speech API. The widget plays one AI-generated `nova` voice track at 0.9× while it advances through slide-level cues after the learner presses Start lesson. API credentials remain server-side; AskLilOwl does not call a paid image-generation API, images and quiz answers are not sent for narration, and generated media is retained only in short-lived server memory.
 
 ## User experience
 
@@ -25,6 +27,10 @@ The user does not need to configure a model inside AskLilOwl. The widget communi
 - the disclosure “AI-generated lesson. Verify important information.”
 
 ## MCP tools
+
+### `prepare_lesson`
+
+Accepts the user's question and returns workflow instructions without downloading assets, generating images, spending API credit, or rendering a lesson. It does not enable a native tool that the host has not made available. Test 27 confirmed that this step alone does not fix native-generation activation in Chat mode.
 
 ### `create_lesson`
 

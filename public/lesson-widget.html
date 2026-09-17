@@ -74,8 +74,8 @@
     .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width .2s ease; }
 
     .deck { overflow: hidden; }
-    .visual { aspect-ratio: 16 / 9; display: grid; place-items: center; overflow: hidden; background: var(--accent-soft); }
-    .visual img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .visual { position: relative; aspect-ratio: 16 / 9; display: grid; place-items: center; overflow: hidden; background: var(--accent-soft); }
+    .visual img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
     .image-placeholder { max-width: 390px; padding: 22px; text-align: center; color: var(--accent); font-weight: 650; }
     .slide-content { padding: 20px 22px 22px; }
     .slide-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; color: var(--muted); font-size: .84rem; font-weight: 700; }
