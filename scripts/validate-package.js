@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -59,6 +60,16 @@ export async function validatePluginPackage(rootUrl) {
     errors
   );
   const assets = {};
+
+  for (const file of [
+    "diagram-worker.js",
+    "assets/fonts/NotoSans-Regular.ttf",
+    "assets/fonts/OFL.txt",
+  ]) {
+    if (!existsSync(new URL(file, rootUrl))) {
+      errors.push(`Required package file is missing: ${file}.`);
+    }
+  }
 
   if (portable) {
     if (

@@ -162,7 +162,9 @@ return buildLesson(args,{...prepared,images,speechService,visualMode});
 
 ## Task 5: Release verification and supervised test
 
-**Files:** update `scripts/validate-package.js` and relevant expectations in `test/package.test.js`, `test/evals.test.js` only when the additional tool/assets require it; create `submission/test-32-diagram-lesson.md` when live testing starts.
+**Files:** update `scripts/validate-package.js` and relevant expectations in `test/package.test.js`, `test/evals.test.js` only when the additional tool/assets require it; update `README.md` for the new workflow; create `submission/test-32-diagram-lesson.md` when live testing starts.
+
+- [ ] Update README workflow/tool sections: every new lesson asks style; follow-ups are conversational without automatic generation; native remains preferred; suitable topics may use strict local PNG diagrams through create_diagram_lesson. Document template/font/timeout limits and hosting CPU use, no image API, no raw SVG widget payload, and pending Linux/Chat verification. Preserve historical test records rather than rewriting their outcomes.
 
 - [ ] Verify package includes static worker and font/license. Add concrete file-existence checks and run them red before implementation:
 

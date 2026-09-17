@@ -1,6 +1,6 @@
 # Safe diagram fallback for AskLilOwl
 
-Status: approved, including the September 17 lesson-style and follow-up addition. Implementation pending; not deployed.
+Status: implemented locally; release verification pending. Not deployed.
 
 ## Approved lesson-style and follow-up addition
 
