@@ -43,6 +43,11 @@ const httpUrlSchema = z
     return protocol === "http:" || protocol === "https:";
   }, "URL must use HTTP or HTTPS.");
 
+const httpsUrlSchema = httpUrlSchema.refine(
+  (value) => new URL(value).protocol === "https:",
+  "Image URL must use HTTPS."
+);
+
 export const slideSchema = z.object({
   id: boundedText("Slide id", INPUT_LIMITS.slideId),
   title: boundedText("Slide title", INPUT_LIMITS.slideTitle),
@@ -72,7 +77,7 @@ export const sourceSchema = z.object({
 const imageObjectSchema = z
   .object({
     file_id: z.string().trim().min(1).max(256).optional(),
-    download_url: httpUrlSchema.optional(),
+    download_url: httpsUrlSchema.optional(),
     file_name: z.string().trim().min(1).max(INPUT_LIMITS.imageFileName).optional(),
     mime_type: z.string().trim().min(1).max(INPUT_LIMITS.imageMimeType).optional(),
   })
@@ -81,7 +86,20 @@ const imageObjectSchema = z
     message: "Each image must include file_id or download_url.",
   });
 
-const receivedImagesSchema = z.array(imageObjectSchema).max(INPUT_LIMITS.images);
+const receivedImageObjectSchema = z.object({
+  file_id: z.unknown().optional(),
+  download_url: z.unknown().optional(),
+  file_name: z.unknown().optional(),
+  mime_type: z.unknown().optional(),
+}).passthrough();
+
+const receivedImagesSchema = z.preprocess(
+  (value) => value == null || Array.isArray(value) ? value : [value],
+  z.array(z.union([
+    z.string(),
+    receivedImageObjectSchema,
+  ])).max(INPUT_LIMITS.images)
+);
 
 export const lessonInputShape = {
   topic: boundedText("Topic", INPUT_LIMITS.topic).describe(
@@ -123,7 +141,7 @@ export const lessonInputShape = {
     .describe("HTTP(S) source links used for researched or time-sensitive claims."),
   images: receivedImagesSchema
     .optional()
-    .describe("One image object per slide in slide order. Each object must include file_id or download_url, or both. download_url must be a direct HTTP(S) image URL publicly reachable without login. Optional fields: file_name and mime_type. Bare strings and inline data URIs are not valid images."),
+    .describe("One image object per slide in slide order. Each object must include file_id or download_url, or both. download_url must be a direct HTTPS image URL publicly reachable without login. Optional fields: file_name and mime_type. Bare strings and inline data URIs are not valid images."),
 };
 
 export const lessonInputSchema = z.object(lessonInputShape).superRefine((lesson, context) => {

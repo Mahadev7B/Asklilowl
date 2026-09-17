@@ -7,9 +7,16 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 
 import { createRateLimiter } from "../http-security.js";
 import { createAskLilOwlHttpServer } from "../server.js";
+import { createLessonImageService } from "../lesson-images.js";
 
 async function startServer(options = {}) {
-  const server = createAskLilOwlHttpServer(options);
+  const server = createAskLilOwlHttpServer({
+    imageService: {
+      prepareMany: async (images) => images,
+      resolve: () => null,
+    },
+    ...options,
+  });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
@@ -143,6 +150,11 @@ test("the lesson tool exposes images as ordinary data instead of a file-upload p
   assert.ok(lessonTool);
   assert.equal(Object.hasOwn(lessonTool._meta, "openai/fileParams"), false);
   assert.equal(lessonTool.inputSchema.properties.images.type, "array");
+  const imageVariants = lessonTool.inputSchema.properties.images.items.anyOf;
+  const describedImage = imageVariants.find((variant) => variant.properties?.download_url);
+  assert.ok(describedImage);
+  assert.ok(describedImage.properties.file_id);
+  assert.equal(describedImage.additionalProperties, true);
   assert.equal(lessonTool._meta.ui.resourceUri, "ui://asklilowl/lesson.html");
 });
 
@@ -185,6 +197,110 @@ test("production serves the generated photosynthesis lesson illustration", async
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("content-type"), "image/png");
   assert.ok((await response.arrayBuffer()).byteLength > 100_000);
+});
+
+test("production serves temporary proxied lesson images from its own origin", async (t) => {
+  const imageService = {
+    prepareMany: async (images) => images,
+    resolve: (id) => id === "known-image"
+      ? { bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47]), contentType: "image/png" }
+      : null,
+  };
+  const { server, origin } = await startServer({ demoMode: false, imageService });
+  t.after(() => stopServer(server));
+
+  const available = await fetch(`${origin}/api/images/known-image`);
+  assert.equal(available.status, 200);
+  assert.equal(available.headers.get("content-type"), "image/png");
+  assert.equal(available.headers.get("cache-control"), "no-store");
+  assert.deepEqual(new Uint8Array(await available.arrayBuffer()), new Uint8Array([0x89, 0x50, 0x4e, 0x47]));
+  assert.equal((await fetch(`${origin}/api/images/expired-image`)).status, 410);
+});
+
+test("production proxies every URL image before narration and fails atomically", async (t) => {
+  let imageCalls = 0;
+  let audioCalls = 0;
+  const imageService = {
+    resolve: () => null,
+    prepareMany: async () => {
+      imageCalls += 1;
+      throw new Error("image unavailable");
+    },
+  };
+  const audioService = {
+    prepare: async () => {
+      audioCalls += 1;
+      return { audioUrl: "https://lesson.example/audio.mp3" };
+    },
+    resolve: () => null,
+  };
+  const { server, origin } = await startServer({ demoMode: false, imageService, audioService });
+  const client = new Client({ name: "asklilowl-image-proxy-order-test", version: "1.0.0" });
+  const transport = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`));
+  await client.connect(transport);
+  t.after(async () => { await client.close(); await stopServer(server); });
+
+  const result = await client.callTool({
+    name: "create_lesson",
+    arguments: {
+      topic: "Solar eclipse", title: "Solar Eclipse", audience: "general learner",
+      slides: ["Sun", "Moon", "Shadow"].map((title, index) => ({ id: String(index), title, body: `${title} helps explain an eclipse.` })),
+      images: ["sun", "moon", "shadow"].map((name) => ({ download_url: `https://images.example/${name}.png` })),
+      quiz: [{ question: "What moves between Earth and the Sun?", choices: ["Moon", "Mars"], answerIndex: 0 }],
+    },
+  });
+
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent, undefined);
+  assert.equal(imageCalls, 1);
+  assert.equal(audioCalls, 0);
+});
+
+test("production creates a lesson through the real proxy and serves its prepared images", async (t) => {
+  const imageService = createLessonImageService({
+    publicOrigin: "https://lesson.example",
+    lookupImpl: async () => [{ address: "8.8.8.8", family: 4 }],
+    dispatcherFactory: () => ({ close: async () => {} }),
+    fetchImpl: async () => new Response(new Uint8Array([0x89, 0x50, 0x4e, 0x47]), {
+      headers: { "content-type": "image/png" },
+    }),
+  });
+  const audioService = {
+    prepare: async () => ({
+      audioUrl: "https://lesson.example/audio.mp3",
+      voice: { available: true, provider: "openai", model: "gpt-4o-mini-tts", voice: "nova", disclosure: "AI-generated voice." },
+    }),
+    resolve: () => null,
+  };
+  const { server, origin } = await startServer({
+    demoMode: false,
+    publicOrigin: "https://lesson.example",
+    imageService,
+    audioService,
+    logger: { info: () => {} },
+  });
+  const client = new Client({ name: "asklilowl-real-image-proxy-test", version: "1.0.0" });
+  const transport = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`));
+  await client.connect(transport);
+  t.after(async () => { await client.close(); await stopServer(server); });
+
+  const result = await client.callTool({
+    name: "create_lesson",
+    arguments: {
+      topic: "Solar eclipse", title: "Solar Eclipse", audience: "general learner",
+      slides: ["Sun", "Moon", "Shadow"].map((title, index) => ({ id: String(index), title, body: `${title} helps explain an eclipse.` })),
+      images: ["sun", "moon", "shadow"].map((name) => ({ download_url: `https://images.example/${name}.png` })),
+      quiz: [{ question: "What moves between Earth and the Sun?", choices: ["Moon", "Mars"], answerIndex: 0 }],
+    },
+  });
+
+  assert.equal(result.isError, undefined);
+  assert.equal(result.structuredContent.lesson.images.length, 3);
+  const preparedUrl = new URL(result.structuredContent.lesson.images[0].url);
+  assert.equal(preparedUrl.origin, "https://lesson.example");
+  const imageResponse = await fetch(`${origin}${preparedUrl.pathname}`);
+  assert.equal(imageResponse.status, 200);
+  assert.deepEqual(new Uint8Array(await imageResponse.arrayBuffer()), new Uint8Array([0x89, 0x50, 0x4e, 0x47]));
 });
 
 test("production MCP returns schema-conformant lessons and actionable quiz errors", async (t) => {

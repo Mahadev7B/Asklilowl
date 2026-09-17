@@ -98,7 +98,7 @@ test("source links must use HTTP or HTTPS", () => {
   assert.equal(lessonInputSchema.safeParse(input).success, false);
 });
 
-test("MCP image input schema accepts only explicit image objects", () => {
+test("MCP image boundary accepts references for diagnostics before strict validation", () => {
   for (const image of [
     { download_url: "https://files.example/bird.png" },
     { file_id: "file_bird" },
@@ -119,7 +119,7 @@ test("MCP image input schema accepts only explicit image objects", () => {
   ]) {
     const input = validInput();
     input.images = images;
-    assert.equal(lessonInputSchema.safeParse(input).success, false);
+    assert.equal(lessonInputSchema.safeParse(input).success, true);
   }
 });
 
@@ -154,6 +154,7 @@ test("strict image contract rejects strings, arbitrary objects, invalid URLs and
     { file_name: "bird.png", mime_type: "image/png" },
     { file_id: "" },
     { download_url: "not a URL" },
+    { download_url: "http://files.example/bird.png" },
     { download_url: "javascript:alert(1)" },
     { download_url: "ftp://files.example/bird.png" },
     { download_url: "data:image/png;base64,AAAA" },

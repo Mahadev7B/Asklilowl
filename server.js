@@ -21,6 +21,7 @@ import { buildLesson } from "./lesson.js";
 import { lessonInputShape, lessonOutputShape, validateStrictLessonInput } from "./lesson-schema.js";
 import { createSpeechService } from "./speech.js";
 import { createLessonAudioService } from "./lesson-audio.js";
+import { createLessonImageService } from "./lesson-images.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,6 +87,7 @@ export function createAskLilOwlServer({
   publicOrigin = defaultPublicOrigin(),
   speechService = createSpeechService({ publicOrigin }),
   audioService = createLessonAudioService({ publicOrigin, speechService }),
+  imageService = { prepareMany: async (images) => images },
   logger = console,
 } = {}) {
   const server = new McpServer(
@@ -168,12 +170,13 @@ export function createAskLilOwlServer({
           logger.info?.(summarizeImageHandoff(args.images));
           args = validateStrictLessonInput(args);
           buildLesson(args);
+          const images = await imageService.prepareMany(args.images);
           const narration = args.slides.map((slide) => slide.body).join("\n\n");
           const prepared = await audioService.prepare({
             narration,
             audience: args.audience,
           });
-          lesson = buildLesson(args, { ...prepared, speechService });
+          lesson = buildLesson(args, { ...prepared, images, speechService });
         }
       } catch (error) {
         if (!(error instanceof RangeError) && !(error instanceof Error)) throw error;
@@ -269,11 +272,13 @@ export function createAskLilOwlHttpServer({
   rateLimit = { limit: 300, windowMs: 60_000 },
   speechOptions = {},
   audioService: configuredAudioService = null,
+  imageService: configuredImageService = null,
   logger = console,
 } = {}) {
   const limiter = createRateLimiter(rateLimit);
   const speechService = createSpeechService({ publicOrigin, ...speechOptions });
   const audioService = configuredAudioService ?? createLessonAudioService({ publicOrigin, tokenSecret: speechOptions.tokenSecret, speechService });
+  const imageService = configuredImageService ?? createLessonImageService({ publicOrigin });
   const testBirdSvg = demoMode
     ? readFileSync(path.join(__dirname, "public", "test-bird.svg"), "utf8")
     : null;
@@ -306,6 +311,21 @@ export function createAskLilOwlHttpServer({
         return;
       }
       response.writeHead(200, { "content-type": asset.contentType, "content-length": String(asset.bytes.length), "cache-control": "no-store" });
+      response.end(asset.bytes);
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname.startsWith("/api/images/")) {
+      const asset = imageService.resolve(url.pathname.slice("/api/images/".length));
+      if (!asset) {
+        response.writeHead(410).end("Lesson image unavailable");
+        return;
+      }
+      response.writeHead(200, {
+        "content-type": asset.contentType,
+        "content-length": String(asset.bytes.length),
+        "cache-control": "no-store",
+      });
       response.end(asset.bytes);
       return;
     }
@@ -379,7 +399,7 @@ export function createAskLilOwlHttpServer({
       response.setHeader("Access-Control-Allow-Origin", "*");
       response.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
 
-      const server = createAskLilOwlServer({ demoMode, publicOrigin, speechService, audioService, logger });
+      const server = createAskLilOwlServer({ demoMode, publicOrigin, speechService, audioService, imageService, logger });
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
         enableJsonResponse: true,
