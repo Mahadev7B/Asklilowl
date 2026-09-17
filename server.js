@@ -223,7 +223,7 @@ export function createAskLilOwlServer({
         inputSchema: {
           fixture: z
             .enum(DEMO_LESSON_IDS)
-            .describe("The built-in lesson fixture to preview in MCP Inspector UI testing."),
+            .describe("The built-in lesson fixture to preview in MCP Inspector."),
         },
         outputSchema: lessonOutputShape,
         annotations: {
