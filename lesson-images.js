@@ -383,6 +383,79 @@ export function createLessonImageService({
     return selectedIndexes.map((index) => preparedUnique[index]);
   }
 
+  function storePngBatch(buffers) {
+    if (!Array.isArray(buffers)) {
+      throw new TypeError("Local lesson images must be provided as a PNG buffer array.");
+    }
+
+    let totalBytes = 0;
+    const stagedBytes = buffers.map((input) => {
+      if (!(input instanceof Uint8Array)) {
+        throw new TypeError("Each local lesson image must be a valid 1200x675 PNG buffer.");
+      }
+      const bytes = Buffer.from(input);
+      const validDimensions = bytes.length >= 24 &&
+        bytes.readUInt32BE(16) === 1200 && bytes.readUInt32BE(20) === 675;
+      if (!hasRasterSignature(bytes, "image/png") || !validDimensions) {
+        throw new Error("Each local lesson image must be a valid 1200x675 PNG.");
+      }
+      if (bytes.length > maxImageBytes) {
+        throw new Error("Lesson image is too large.");
+      }
+      totalBytes += bytes.length;
+      if (totalBytes > maxLessonImageBytes) {
+        throw new Error("Lesson images are too large.");
+      }
+      return bytes;
+    });
+
+    if (totalBytes > maxCacheBytes || stagedBytes.length > 64) {
+      throw new Error("Local lesson image batch is too large for the temporary cache.");
+    }
+
+    const ids = [];
+    const reservedIds = new Set(assets.keys());
+    for (let index = 0; index < stagedBytes.length; index += 1) {
+      let id;
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        const candidate = String(idFactory());
+        if (candidate && !reservedIds.has(candidate)) {
+          id = candidate;
+          break;
+        }
+      }
+      if (!id) throw new Error("Could not assign a unique local lesson image ID.");
+      reservedIds.add(id);
+      ids.push(id);
+    }
+
+    prune();
+    let cachedBytes = 0;
+    for (const asset of assets.values()) cachedBytes += asset.bytes.length;
+    while (assets.size + stagedBytes.length > 64 || cachedBytes + totalBytes > maxCacheBytes) {
+      const oldestId = assets.keys().next().value;
+      const oldest = assets.get(oldestId);
+      assets.delete(oldestId);
+      cachedBytes -= oldest.bytes.length;
+    }
+
+    const expiresAt = now() + assetTtlSeconds * 1_000;
+    for (let index = 0; index < stagedBytes.length; index += 1) {
+      assets.set(ids[index], {
+        bytes: stagedBytes[index],
+        contentType: "image/png",
+        expiresAt,
+      });
+    }
+
+    return stagedBytes.map((bytes, index) => ({
+      download_url: `${origin}/api/images/${ids[index]}`,
+      mime_type: "image/png",
+      file_name: `lesson-diagram-${index + 1}.png`,
+      size: bytes.length,
+    }));
+  }
+
   function resolve(id) {
     prune();
     const asset = assets.get(String(id));
@@ -390,5 +463,5 @@ export function createLessonImageService({
     return asset;
   }
 
-  return { prepareMany, prepareForLesson, resolve };
+  return { prepareMany, prepareForLesson, storePngBatch, resolve };
 }

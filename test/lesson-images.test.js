@@ -9,6 +9,18 @@ const PNG_BYTES = new Uint8Array(Buffer.from(
   "base64"
 ));
 
+function localDiagramPng(size = PNG_BYTES.byteLength) {
+  const minimumSize = PNG_BYTES.byteLength;
+  const bytes = Buffer.alloc(Math.max(size, minimumSize));
+  Buffer.from(PNG_BYTES).copy(bytes);
+  bytes.writeUInt32BE(1200, 16);
+  bytes.writeUInt32BE(675, 20);
+  if (bytes.length > minimumSize) {
+    Buffer.from(PNG_BYTES).subarray(-12).copy(bytes, bytes.length - 12);
+  }
+  return bytes;
+}
+
 test("image service stores a bounded public raster image behind the AskLilOwl origin", async () => {
   const service = createLessonImageService({
     publicOrigin: "https://lesson.example",
@@ -547,4 +559,103 @@ test("image service rejects invalid resource-limit configuration", () => {
     () => createLessonImageService({ maxConcurrentSearches: 2 }),
     /serialized/i
   );
+});
+
+test("local PNG batch validation is atomic when the last member is malformed", () => {
+  let nextId = 0;
+  const service = createLessonImageService({ idFactory: () => `local-${++nextId}` });
+
+  assert.throws(
+    () => service.storePngBatch([localDiagramPng(), Buffer.from("not a PNG")]),
+    /valid 1200x675 PNG/i
+  );
+  assert.equal(nextId, 0);
+  assert.equal(service.resolve("local-1"), null);
+});
+
+test("local PNG batches reject the per-image and aggregate lesson byte limits", () => {
+  const service = createLessonImageService();
+
+  assert.throws(
+    () => service.storePngBatch([localDiagramPng(5 * 1024 * 1024 + 1)]),
+    /too large/i
+  );
+  assert.throws(
+    () => service.storePngBatch(Array.from({ length: 5 }, () => localDiagramPng(4 * 1024 * 1024 + 1))),
+    /too large/i
+  );
+});
+
+test("local PNG batches expire together and own copies of caller buffers", () => {
+  let currentTime = 10_000;
+  const original = localDiagramPng();
+  const service = createLessonImageService({
+    publicOrigin: "https://lesson.example",
+    assetTtlSeconds: 2,
+    now: () => currentTime,
+  });
+
+  const [stored] = service.storePngBatch([original]);
+  const id = new URL(stored.download_url).pathname.split("/").pop();
+  original.fill(0);
+  assert.equal(service.resolve(id).bytes[0], 0x89);
+  currentTime += 2_000;
+  assert.equal(service.resolve(id), null);
+});
+
+test("simultaneous local PNG users receive unique same-origin asset IDs without fetching", async () => {
+  let fetchCalls = 0;
+  const service = createLessonImageService({
+    publicOrigin: "https://lesson.example",
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      throw new Error("local PNG storage must not fetch");
+    },
+  });
+
+  const batches = await Promise.all(Array.from({ length: 20 }, async () => (
+    service.storePngBatch([localDiagramPng(), localDiagramPng()])
+  )));
+  const stored = batches.flat();
+  const urls = stored.map((asset) => asset.download_url);
+  assert.equal(new Set(urls).size, urls.length);
+  assert.ok(urls.every((url) => url.startsWith("https://lesson.example/api/images/")));
+  assert.ok(stored.every((asset) => asset.mime_type === "image/png"));
+  assert.equal(fetchCalls, 0);
+});
+
+test("a successful local PNG batch remains resolvable with PNG metadata", () => {
+  const service = createLessonImageService({ publicOrigin: "https://lesson.example" });
+
+  const stored = service.storePngBatch([localDiagramPng(), localDiagramPng()]);
+
+  assert.notEqual(stored[0].download_url, stored[1].download_url);
+  assert.deepEqual(Object.keys(stored[0]).sort(), ["download_url", "file_name", "mime_type", "size"]);
+  assert.deepEqual(stored.map(({ mime_type, file_name, size }) => ({ mime_type, file_name, size })), [
+    { mime_type: "image/png", file_name: "lesson-diagram-1.png", size: PNG_BYTES.byteLength },
+    { mime_type: "image/png", file_name: "lesson-diagram-2.png", size: PNG_BYTES.byteLength },
+  ]);
+  for (const asset of stored) {
+    const id = new URL(asset.download_url).pathname.split("/").pop();
+    assert.deepEqual(service.resolve(id).bytes, localDiagramPng());
+  }
+});
+
+test("cache pressure evicts older assets without splitting the newly admitted local batch", () => {
+  let nextId = 0;
+  const imageSize = localDiagramPng().byteLength;
+  const service = createLessonImageService({
+    maxCacheBytes: imageSize * 2,
+    idFactory: () => `asset-${++nextId}`,
+  });
+  const [oldAsset] = service.storePngBatch([localDiagramPng()]);
+
+  const newBatch = service.storePngBatch([localDiagramPng(), localDiagramPng()]);
+
+  const oldId = new URL(oldAsset.download_url).pathname.split("/").pop();
+  assert.equal(service.resolve(oldId), null);
+  assert.ok(newBatch.every(({ download_url }) => {
+    const id = new URL(download_url).pathname.split("/").pop();
+    return service.resolve(id) !== null;
+  }));
 });
