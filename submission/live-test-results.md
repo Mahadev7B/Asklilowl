@@ -72,3 +72,13 @@ These cases remain “Not run” until they are observed inside ChatGPT Develope
 - Voice cost: no narration request was made because image preparation did not complete.
 - API credit balance: `$2.51` before and `$2.51` after the test.
 - Follow-up: retry a missing slide-specific visual with a broader lesson-topic request under the same license, relevance, raster, and security rules before Test 19.
+
+## Test 19 — failed
+
+- Question: `How do bridges stay up?`
+- Build: `ab6723b` (`Use topic visual when slide image is unavailable`).
+- Entry path: AskLilOwl plugin page → **Try in chat** → **Chat** mode; the user question did not contain a manual app tag.
+- Result: AskLilOwl was invoked. Two sequential Wikimedia searches succeeded, then the third received HTTP 429 and exhausted two fixed two-second retries before the broader topic fallback could run.
+- Voice cost: no narration request was made because image preparation did not complete.
+- API credit balance: `$2.51` before and `$2.51` after the test.
+- Follow-up: pace all Wikimedia API calls and use bounded exponential retry delays before Test 20.

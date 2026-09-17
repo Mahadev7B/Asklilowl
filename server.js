@@ -282,7 +282,10 @@ export function createAskLilOwlHttpServer({
   const speechService = createSpeechService({ publicOrigin, ...speechOptions });
   const audioService = configuredAudioService ?? createLessonAudioService({ publicOrigin, tokenSecret: speechOptions.tokenSecret, speechService });
   const publicImageProvider = createWikimediaImageProvider({
-    timeoutMs: Number(process.env.PUBLIC_IMAGE_SEARCH_TIMEOUT_MS ?? 8_000),
+    timeoutMs: Number(process.env.PUBLIC_IMAGE_SEARCH_TIMEOUT_MS ?? 30_000),
+    minimumRequestIntervalMs: Number(process.env.PUBLIC_IMAGE_SEARCH_INTERVAL_MS ?? 1_500),
+    rateLimitRetries: Number(process.env.PUBLIC_IMAGE_RATE_LIMIT_RETRIES ?? 3),
+    retryBaseMs: Number(process.env.PUBLIC_IMAGE_RETRY_BASE_MS ?? 2_000),
     logger,
   });
   const imageService = configuredImageService ?? createLessonImageService({ publicOrigin, publicImageProvider });

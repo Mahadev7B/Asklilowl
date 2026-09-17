@@ -7,7 +7,7 @@ const WIKIMEDIA_API = "https://commons.wikimedia.org/w/api.php";
 const DEFAULT_TIMEOUT_MS = 8_000;
 const DEFAULT_RATE_LIMIT_RETRIES = 2;
 const DEFAULT_RETRY_BASE_MS = 400;
-const MAX_RETRY_DELAY_MS = 2_000;
+const MAX_RETRY_DELAY_MS = 8_000;
 const MAX_API_RESPONSE_BYTES = 1024 * 1024;
 const SEARCH_RESULT_LIMIT = 12;
 const RASTER_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -223,19 +223,20 @@ function safeHttps(value) {
   }
 }
 
-function retryDelayMs(response, retryIndex, retryBaseMs) {
+function retryDelayMs(response, retryIndex, retryBaseMs, nowMs) {
+  let retryAfterMs = 0;
   const raw = response.headers.get("retry-after");
   if (raw) {
     const seconds = Number(raw);
     if (Number.isFinite(seconds) && seconds >= 0) {
-      return Math.min(MAX_RETRY_DELAY_MS, Math.round(seconds * 1_000));
-    }
-    const date = Date.parse(raw);
-    if (Number.isFinite(date)) {
-      return Math.min(MAX_RETRY_DELAY_MS, Math.max(0, date - Date.now()));
+      retryAfterMs = Math.round(seconds * 1_000);
+    } else {
+      const date = Date.parse(raw);
+      if (Number.isFinite(date)) retryAfterMs = Math.max(0, date - nowMs);
     }
   }
-  return Math.min(MAX_RETRY_DELAY_MS, retryBaseMs * (2 ** retryIndex));
+  const exponentialMs = retryBaseMs * (2 ** retryIndex);
+  return Math.min(MAX_RETRY_DELAY_MS, Math.max(retryAfterMs, exponentialMs));
 }
 
 export function normalizeWikimediaCandidate(page, position = 0) {
@@ -274,13 +275,23 @@ export function createWikimediaImageProvider({
   dispatcherFactory = createPinnedDispatcher,
   rateLimitRetries = DEFAULT_RATE_LIMIT_RETRIES,
   retryBaseMs = DEFAULT_RETRY_BASE_MS,
+  minimumRequestIntervalMs = 0,
+  nowImpl = Date.now,
   sleepImpl = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 } = {}) {
+  if (!Number.isFinite(minimumRequestIntervalMs) || minimumRequestIntervalMs < 0) {
+    throw new TypeError("minimumRequestIntervalMs must be a finite non-negative number.");
+  }
+  let nextRequestAt = 0;
+
   async function fetchWithRateLimitRetry(url, options) {
     for (let retryIndex = 0; ; retryIndex += 1) {
+      const pacingDelay = Math.max(0, nextRequestAt - nowImpl());
+      if (pacingDelay > 0) await sleepImpl(pacingDelay);
+      nextRequestAt = nowImpl() + minimumRequestIntervalMs;
       const response = await fetchImpl(url, options);
       if (response.status !== 429 || retryIndex >= rateLimitRetries) return response;
-      const delay = retryDelayMs(response, retryIndex, retryBaseMs);
+      const delay = retryDelayMs(response, retryIndex, retryBaseMs, nowImpl());
       await response.body?.cancel().catch(() => {});
       logger.info?.({
         event: "public_image_search_retry",
