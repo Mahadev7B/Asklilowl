@@ -147,6 +147,29 @@ test("strict image contract accepts URL-only, file-only, and combined references
   }
 });
 
+test("strict image contract preserves verified public-source attribution", () => {
+  const input = validInput();
+  input.images = input.slides.map((slide) => ({
+    download_url: `https://upload.wikimedia.org/${slide.id}.png`,
+    mime_type: "image/png",
+    file_name: `${slide.id}.png`,
+    title: `${slide.title} diagram`,
+    source_page_url: `https://commons.wikimedia.org/wiki/File:${slide.id}.png`,
+    creator: "Example creator",
+    license_name: "CC BY 4.0",
+    license_url: "https://creativecommons.org/licenses/by/4.0/",
+    source_organization: "Wikimedia Commons",
+    description: `A diagram for ${slide.title}`,
+  }));
+
+  const strict = validateStrictLessonInput(input);
+  const lesson = buildLesson(strict);
+
+  assert.equal(lesson.images[0].creator, "Example creator");
+  assert.equal(lesson.images[0].licenseName, "CC BY 4.0");
+  assert.match(lesson.images[0].sourcePageUrl, /commons\.wikimedia\.org/);
+});
+
 test("strict image contract rejects strings, arbitrary objects, invalid URLs and data URIs", () => {
   for (const image of [
     "https://files.example/bird.png",

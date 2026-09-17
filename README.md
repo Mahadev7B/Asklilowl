@@ -5,13 +5,13 @@ AskLilOwl turns a question into an interactive visual lesson inside ChatGPT. Thi
 ## How the production flow works
 
 1. The user enables AskLilOwl in ChatGPT and asks a question normally.
-2. The active ChatGPT model researches when needed, writes an audience-appropriate lesson, chooses its length, and generates useful educational images when available.
-3. ChatGPT calls `create_lesson` with the completed lesson, quiz, sources, and image files.
-4. AskLilOwl validates that payload and renders the lesson in its interactive widget.
+2. The active ChatGPT model researches when needed, writes an audience-appropriate lesson, chooses its length, and describes the clearest teaching visual for each slide.
+3. ChatGPT calls `create_lesson` with the completed lesson, quiz, sources, and slide-specific image prompts.
+4. AskLilOwl finds commercially reusable educational visuals from Wikimedia Commons, validates and securely proxies every raster image, creates one narration track, and renders the complete lesson atomically.
 
 AskLilOwl does **not** select a ChatGPT model. It uses whichever model ChatGPT is currently running or routes to for the conversation. There is also no AskLilOwl `Thinking` mode setting: reasoning controls belong to the ChatGPT host, when the host exposes them, and should not be duplicated in this plugin.
 
-The host ChatGPT model writes the lesson and supplies one ChatGPT-managed educational image per slide through `_meta["openai/fileParams"]`. AskLilOwl validates that complete set, then sends the combined visible slide text once to OpenAI's Speech API before returning the lesson. The widget plays one AI-generated `nova` voice track at 0.9× while it advances through slide-level cues after the learner presses Start lesson. API credentials remain server-side; AskLilOwl never calls an image API, images and quiz answers are not sent for narration, and generated audio is retained only in short-lived server memory.
+The host ChatGPT model writes the lesson and a concrete `imagePrompt` for each slide. AskLilOwl uses the official Wikimedia Commons API—never arbitrary webpage scraping—to choose a directly relevant Public Domain, CC0, CC BY, or CC BY-SA visual. SVG originals are converted through Wikimedia's official PNG preview and SVG bytes are never delivered to the widget. AskLilOwl securely proxies all raster images before sending the combined visible slide text once to OpenAI's Speech API. The widget plays one AI-generated `nova` voice track at 0.9× while it advances through slide-level cues after the learner presses Start lesson. API credentials remain server-side; AskLilOwl does not call a paid image-generation API, images and quiz answers are not sent for narration, and generated media is retained only in short-lived server memory.
 
 ## User experience
 
@@ -19,6 +19,7 @@ The user does not need to configure a model inside AskLilOwl. The widget communi
 
 - a lesson-preparation state while ChatGPT is working;
 - lesson objectives and optional source links;
+- a compact image-credits section with creator, license, and source links;
 - an explicit badge when fixed Inspector demo content is shown;
 - a clear error instead of a blank panel when a payload is invalid;
 - the disclosure “AI-generated lesson. Verify important information.”
@@ -27,7 +28,9 @@ The user does not need to configure a model inside AskLilOwl. The widget communi
 
 ### `create_lesson`
 
-The production tool. It receives a finished lesson with 3–20 slides, an audience level, learning objectives, a quiz, optional source links, and optional ChatGPT-managed image files.
+The production tool. It receives a finished lesson with 3–20 slides, an audience level, learning objectives, a quiz, optional source links, concrete slide image prompts, and optional attributed public-image candidates.
+
+Production does not trust attribution supplied by the host. It re-fetches official Commons metadata for a suitable supplied candidate or replaces it through public search. Search is bounded to four concurrent slide lookups, at most three progressively simplified subject queries per slide, and 12 results per query; an unrelated result is rejected even when its license is acceptable.
 
 Lesson length is dynamic. Typical guidance is 4–5 slides for a quick topic, 6–8 for a standard topic, 9–12 for a complex topic, and up to 20 for a deep dive. The host model should use only the number needed to teach the topic clearly.
 
@@ -88,12 +91,12 @@ Choose **Streamable HTTP**, connect to `http://localhost:8787/mcp`, select `prev
 2. Leave `ASKLILOWL_DEMO_MODE` unset in production.
 3. Enable ChatGPT Developer Mode and add the deployed `/mcp` endpoint.
 4. Start a conversation with AskLilOwl enabled and ask for a lesson.
-5. Verify that ChatGPT creates the content, uses research for time-sensitive claims, passes sources and any generated image files, and opens the widget.
+5. Verify that ChatGPT creates the content, uses research for time-sensitive claims, supplies concrete image prompts, and opens the complete widget.
 6. Test simple, current, and technical questions plus invalid payload and unavailable-image cases.
 
 ## Deployment
 
-`render.yaml` defines a free Render web service with `/healthz` as its health check. No AI-provider secret or paid third-party API is required. Configure `PUBLIC_ORIGIN` to the service's public HTTPS origin if it differs from the default. Do not set `ASKLILOWL_DEMO_MODE` in production.
+`render.yaml` defines the Render web service with `/healthz` as its health check. Configure `PUBLIC_ORIGIN` to the service's public HTTPS origin if it differs from the default, set `OPENAI_API_KEY` and `VOICE_TOKEN_SECRET` for narration, and optionally adjust `PUBLIC_IMAGE_SEARCH_TIMEOUT_MS` from its 8-second default. Public image search needs no image-provider credential or paid image API. Do not set `ASKLILOWL_DEMO_MODE` in production.
 
 ## Plugin package
 
@@ -104,7 +107,7 @@ Choose **Streamable HTTP**, connect to `http://localhost:8787/mcp`, select `prev
 - `evals/cases.json` contains versioned tool-selection and product-quality cases.
 - `submission/` contains listing copy, review cases, and the live-test record.
 
-The package intentionally has no bundled model setting or `Thinking` control. The active ChatGPT conversation owns model routing, research, writing, and native image generation.
+The package intentionally has no bundled model setting or `Thinking` control. The active ChatGPT conversation owns model routing, research, writing, and the per-slide visual intent; AskLilOwl owns licensed public-image retrieval and validation.
 
 ## Limits and operational safeguards
 

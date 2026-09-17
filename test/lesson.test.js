@@ -120,6 +120,27 @@ test("buildLesson preserves production lesson context and maps images to slides"
   assert.equal(lesson.slides[2].imageIndex, 2);
 });
 
+test("buildLesson exposes public image credits without changing slide mapping", () => {
+  const lesson = buildLesson({
+    ...validLessonInput,
+    images: validLessonInput.slides.map((slide) => ({
+      download_url: `https://lesson.example/${slide.id}.png`,
+      title: `${slide.title} visual`,
+      source_page_url: `https://commons.wikimedia.org/wiki/File:${slide.id}.png`,
+      creator: "Public educator",
+      license_name: "CC0 1.0",
+      license_url: "https://creativecommons.org/publicdomain/zero/1.0/",
+      source_organization: "Wikimedia Commons",
+      description: `A clear visual for ${slide.title}`,
+    })),
+  });
+
+  assert.equal(lesson.images[0].title, "Wings visual");
+  assert.equal(lesson.images[0].creator, "Public educator");
+  assert.equal(lesson.images[0].licenseName, "CC0 1.0");
+  assert.equal(lesson.slides[2].imageIndex, 2);
+});
+
 test("buildLesson rejects a production lesson without one ChatGPT image per slide", () => {
   assert.throws(() => buildLesson({
     topic: "How rainbows form",

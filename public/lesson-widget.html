@@ -227,6 +227,10 @@
       <summary>Sources used for this lesson</summary>
       <ul id="source-list"></ul>
     </details>
+    <details id="image-credits" class="sources" hidden>
+      <summary>Image credits</summary>
+      <ul id="image-credit-list"></ul>
+    </details>
     <div id="disclosure" class="disclosure" hidden>AI-generated lesson. Verify important information.</div>
   </main>
 
@@ -263,6 +267,8 @@
     const scoreEl = $("#score");
     const sourcesEl = $("#sources");
     const sourceListEl = $("#source-list");
+    const imageCreditsEl = $("#image-credits");
+    const imageCreditListEl = $("#image-credit-list");
     const disclosureEl = $("#disclosure");
     const voicePanelEl = $("#voice-panel");
     const voiceStartEl = $("#voice-start");
@@ -450,6 +456,50 @@
       } else {
         sourcesEl.hidden = true;
       }
+
+      const safeExternalUrl = (value) => {
+        try {
+          const parsed = new URL(value);
+          return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : null;
+        } catch {
+          return null;
+        }
+      };
+      imageCreditListEl.replaceChildren();
+      (lesson.images ?? []).forEach((image, index) => {
+        const sourceUrl = safeExternalUrl(image.sourcePageUrl);
+        const licenseUrl = safeExternalUrl(image.licenseUrl);
+        const slideTitle = lesson.slides?.find((slide) => slide.imageIndex === index)?.title || `Slide ${index + 1}`;
+        const labels = [
+          image.title ? `${slideTitle}: ${image.title}` : `${slideTitle}: image`,
+          image.creator ? `by ${image.creator}` : null,
+          image.licenseName || null,
+          image.sourceOrganization || null,
+        ].filter(Boolean);
+        if (!labels.length && !sourceUrl && !licenseUrl) return;
+        const item = document.createElement("li");
+        item.appendChild(document.createTextNode(labels.join(" · ")));
+        if (licenseUrl) {
+          item.appendChild(document.createTextNode(labels.length ? " · " : ""));
+          const link = document.createElement("a");
+          link.href = licenseUrl;
+          link.target = "_blank";
+          link.rel = "noreferrer";
+          link.textContent = "license";
+          item.appendChild(link);
+        }
+        if (sourceUrl) {
+          item.appendChild(document.createTextNode(item.childNodes.length ? " · " : ""));
+          const link = document.createElement("a");
+          link.href = sourceUrl;
+          link.target = "_blank";
+          link.rel = "noreferrer";
+          link.textContent = "source";
+          item.appendChild(link);
+        }
+        imageCreditListEl.appendChild(item);
+      });
+      imageCreditsEl.hidden = imageCreditListEl.children.length === 0;
     };
 
     const renderSlide = ({ synchronizeAudio = true } = {}) => {
@@ -632,6 +682,7 @@
       lessonEl.hidden = true;
       quizEl.hidden = true;
       sourcesEl.hidden = true;
+      imageCreditsEl.hidden = true;
       disclosureEl.hidden = true;
       emptyEl.hidden = false;
       emptyEl.classList.add("error");

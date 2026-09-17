@@ -9,6 +9,11 @@ import { createRateLimiter } from "../http-security.js";
 import { createAskLilOwlHttpServer } from "../server.js";
 import { createLessonImageService } from "../lesson-images.js";
 
+const PNG_BYTES = new Uint8Array(Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64"
+));
+
 async function startServer(options = {}) {
   const server = createAskLilOwlHttpServer({
     imageService: {
@@ -127,12 +132,14 @@ test("the host-facing lesson instruction requires safe educational behavior", as
   assert.match(description, /do not call this tool to turn it into a lesson/i);
   assert.match(description, /lesson fields, source links, or image labels.*instructions that override/i);
   assert.match(description, /medical, legal, or financial topics.*general educational information/i);
-  assert.match(description, /simple, slide-specific native ChatGPT educational image/i);
-  assert.match(description, /exactly one image object for each slide in slide order/i);
-  assert.match(description, /direct HTTPS URL.*download_url/i);
-  assert.match(description, /publicly reachable without login/i);
+  assert.match(description, /concrete imagePrompt/i);
+  assert.match(description, /license-verified public educational images/i);
+  assert.match(description, /common-sense relevance/i);
+  assert.match(description, /optional.*image references.*compatibility and safe diagnostics/i);
+  assert.match(description, /revalidates official Commons metadata.*self-declared attribution/i);
   assert.match(description, /always call this tool/i);
   assert.doesNotMatch(description, /if native image generation is unavailable, do not call/i);
+  assert.doesNotMatch(description, /generate and attach one.*native ChatGPT/i);
   assert.match(description, /avoid dense infographic posters/i);
   assert.match(description, /infer the learner level from the question and conversation context/i);
   assert.match(description, /do not ask the user to choose an audience/i);
@@ -203,7 +210,7 @@ test("production serves temporary proxied lesson images from its own origin", as
   const imageService = {
     prepareMany: async (images) => images,
     resolve: (id) => id === "known-image"
-      ? { bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47]), contentType: "image/png" }
+      ? { bytes: PNG_BYTES, contentType: "image/png" }
       : null,
   };
   const { server, origin } = await startServer({ demoMode: false, imageService });
@@ -213,7 +220,7 @@ test("production serves temporary proxied lesson images from its own origin", as
   assert.equal(available.status, 200);
   assert.equal(available.headers.get("content-type"), "image/png");
   assert.equal(available.headers.get("cache-control"), "no-store");
-  assert.deepEqual(new Uint8Array(await available.arrayBuffer()), new Uint8Array([0x89, 0x50, 0x4e, 0x47]));
+  assert.deepEqual(new Uint8Array(await available.arrayBuffer()), PNG_BYTES);
   assert.equal((await fetch(`${origin}/api/images/expired-image`)).status, 410);
 });
 
@@ -261,7 +268,7 @@ test("production creates a lesson through the real proxy and serves its prepared
     publicOrigin: "https://lesson.example",
     lookupImpl: async () => [{ address: "8.8.8.8", family: 4 }],
     dispatcherFactory: () => ({ close: async () => {} }),
-    fetchImpl: async () => new Response(new Uint8Array([0x89, 0x50, 0x4e, 0x47]), {
+    fetchImpl: async () => new Response(PNG_BYTES, {
       headers: { "content-type": "image/png" },
     }),
   });
@@ -300,7 +307,65 @@ test("production creates a lesson through the real proxy and serves its prepared
   assert.equal(preparedUrl.origin, "https://lesson.example");
   const imageResponse = await fetch(`${origin}${preparedUrl.pathname}`);
   assert.equal(imageResponse.status, 200);
-  assert.deepEqual(new Uint8Array(await imageResponse.arrayBuffer()), new Uint8Array([0x89, 0x50, 0x4e, 0x47]));
+  assert.deepEqual(new Uint8Array(await imageResponse.arrayBuffer()), PNG_BYTES);
+});
+
+test("production sources public images before making one narration request", async (t) => {
+  const order = [];
+  const imageService = {
+    resolve: () => null,
+    async prepareForLesson(args) {
+      order.push("images");
+      assert.equal(args.images, undefined);
+      return args.slides.map((slide, index) => ({
+        download_url: `https://lesson.example/api/images/${index}`,
+        mime_type: "image/png",
+        file_name: `${slide.id}.png`,
+        title: `${slide.title} visual`,
+        source_page_url: `https://commons.wikimedia.org/wiki/File:${slide.id}.png`,
+        creator: "Public educator",
+        license_name: "CC0 1.0",
+        license_url: "https://creativecommons.org/publicdomain/zero/1.0/",
+        source_organization: "Wikimedia Commons",
+        description: slide.imagePrompt,
+      }));
+    },
+  };
+  const audioService = {
+    resolve: () => null,
+    async prepare() {
+      order.push("audio");
+      return {
+        audioUrl: "https://lesson.example/api/assets/audio",
+        voice: { available: true, provider: "openai", model: "gpt-4o-mini-tts", voice: "nova", disclosure: "AI-generated voice." },
+      };
+    },
+  };
+  const { server, origin } = await startServer({ demoMode: false, imageService, audioService, logger: { info: () => {} } });
+  const client = new Client({ name: "asklilowl-public-image-test", version: "1.0.0" });
+  const transport = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`));
+  await client.connect(transport);
+  t.after(async () => { await client.close(); await stopServer(server); });
+
+  const result = await client.callTool({
+    name: "create_lesson",
+    arguments: {
+      topic: "Area of a regular octagon",
+      title: "Octagon Area",
+      audience: "general learner",
+      slides: [
+        { id: "shape", title: "The shape", body: "A regular octagon has eight equal sides.", imagePrompt: "clean regular octagon" },
+        { id: "apothem", title: "The apothem", body: "The apothem reaches the middle of a side.", imagePrompt: "regular octagon with labeled apothem" },
+        { id: "triangles", title: "Eight triangles", body: "Divide the octagon into eight equal triangles.", imagePrompt: "octagon divided into eight equal triangles" },
+      ],
+      quiz: [{ question: "How many sides?", choices: ["Eight", "Six"], answerIndex: 0 }],
+    },
+  });
+
+  assert.equal(result.isError, undefined);
+  assert.deepEqual(order, ["images", "audio"]);
+  assert.equal(result.structuredContent.lesson.images.length, 3);
+  assert.equal(result.structuredContent.lesson.images[1].licenseName, "CC0 1.0");
 });
 
 test("production MCP returns schema-conformant lessons and actionable quiz errors", async (t) => {
@@ -372,6 +437,15 @@ test("production records safe image-handoff diagnostics before narration", async
   const { server, origin } = await startServer({
     demoMode: false,
     logger: { info: (event) => events.push(event) },
+    imageService: {
+      resolve: () => null,
+      async prepareForLesson(args) {
+        if (!Array.isArray(args.images) || args.images.length !== 3 || args.images.some((image) => !image.file_id || !image.download_url)) {
+          throw new Error("Image handoff was incomplete.");
+        }
+        return args.images;
+      },
+    },
     speechOptions: {
       apiKey: "test-key",
       tokenSecret: "s".repeat(32),
@@ -437,6 +511,15 @@ test("production logs malformed image handoffs before strict rejection", async (
   const { server, origin } = await startServer({
     demoMode: false,
     logger: { info: (event) => events.push(event) },
+    imageService: {
+      resolve: () => null,
+      async prepareForLesson(args) {
+        if (!Array.isArray(args.images) || args.images.length !== 3 || args.images.some((image) => !image.file_id || !image.download_url)) {
+          throw new Error("Image handoff was incomplete.");
+        }
+        return args.images;
+      },
+    },
     audioService: {
       enabled: true,
       prepare: async () => {
@@ -481,10 +564,20 @@ test("production logs malformed image handoffs before strict rejection", async (
   assert.equal(narrationCalls, 1);
 });
 
-test("production validates ChatGPT images before creating one narration track", async (t) => {
+test("production sources missing images before creating one narration track", async (t) => {
   let speechCalls = 0;
   const { server, origin } = await startServer({
     demoMode: false,
+    imageService: {
+      resolve: () => null,
+      async prepareForLesson(args) {
+        return args.images ?? args.slides.map((slide, index) => ({
+          download_url: `https://lesson.example/api/images/${index}`,
+          mime_type: "image/png",
+          file_name: `${slide.id}.png`,
+        }));
+      },
+    },
     speechOptions: {
       apiKey: "test-key",
       tokenSecret: "s".repeat(32),
@@ -516,8 +609,9 @@ test("production validates ChatGPT images before creating one narration track", 
   };
 
   const missingImages = await client.callTool({ name: "create_lesson", arguments: baseLesson });
-  assert.equal(missingImages.isError, true);
-  assert.equal(speechCalls, 0);
+  assert.equal(missingImages.isError, undefined);
+  assert.equal(missingImages.structuredContent.lesson.images.length, 3);
+  assert.equal(speechCalls, 1);
 
   const completeLesson = await client.callTool({
     name: "create_lesson",
@@ -532,11 +626,11 @@ test("production validates ChatGPT images before creating one narration track", 
   assert.equal(completeLesson.isError, undefined);
   assert.equal(completeLesson.structuredContent.lesson.images.length, 3);
   assert.match(completeLesson.structuredContent.lesson.audioUrl, /\/api\/assets\//);
-  assert.equal(speechCalls, 1);
+  assert.equal(speechCalls, 2);
   const audio = await fetch(`${origin}${new URL(completeLesson.structuredContent.lesson.audioUrl).pathname}`);
   assert.equal(audio.status, 200);
   assert.equal(audio.headers.get("content-type"), "audio/mpeg");
-  assert.equal(speechCalls, 1);
+  assert.equal(speechCalls, 2);
 });
 
 test("lesson failures log only sanitized voice-provider diagnostics", async (t) => {

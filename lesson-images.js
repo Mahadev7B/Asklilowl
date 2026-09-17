@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import ipaddr from "ipaddr.js";
 import { Agent } from "undici";
+import { buildVisualRequest, isAllowedPublicLicense } from "./public-images.js";
 
 const DEFAULT_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const DEFAULT_TTL_SECONDS = 15 * 60;
@@ -113,6 +114,40 @@ async function readBoundedBody(response, maxBytes) {
   return bytes;
 }
 
+function hasRasterSignature(bytes, contentType) {
+  if (contentType === "image/png") {
+    const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    if (bytes.length < 45 || !signature.every((value, index) => bytes[index] === value)) return false;
+    const ascii = new TextDecoder("ascii");
+    const hasIhdr = bytes[8] === 0 && bytes[9] === 0 && bytes[10] === 0 && bytes[11] === 13 &&
+      ascii.decode(bytes.subarray(12, 16)) === "IHDR";
+    const end = bytes.length - 12;
+    const hasIend = bytes[end] === 0 && bytes[end + 1] === 0 && bytes[end + 2] === 0 && bytes[end + 3] === 0 &&
+      ascii.decode(bytes.subarray(end + 4, end + 8)) === "IEND";
+    return hasIhdr && hasIend;
+  }
+  if (contentType === "image/jpeg") {
+    return bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8 &&
+      bytes[bytes.length - 2] === 0xff && bytes[bytes.length - 1] === 0xd9;
+  }
+  if (contentType === "image/gif") {
+    const header = new TextDecoder("ascii").decode(bytes.subarray(0, 6));
+    return bytes.length >= 14 && (header === "GIF87a" || header === "GIF89a") && bytes[bytes.length - 1] === 0x3b;
+  }
+  if (contentType === "image/webp") {
+    const declaredSize = bytes.length >= 8 ? new DataView(bytes.buffer, bytes.byteOffset + 4, 4).getUint32(0, true) : 0;
+    return bytes.length >= 20 && declaredSize + 8 <= bytes.length &&
+      new TextDecoder("ascii").decode(bytes.subarray(0, 4)) === "RIFF" &&
+      new TextDecoder("ascii").decode(bytes.subarray(8, 12)) === "WEBP";
+  }
+  if (contentType === "image/avif") {
+    if (bytes.length < 16 || new TextDecoder("ascii").decode(bytes.subarray(4, 8)) !== "ftyp") return false;
+    const brand = new TextDecoder("ascii").decode(bytes.subarray(8, Math.min(bytes.length, 32)));
+    return /avif|avis/.test(brand);
+  }
+  return false;
+}
+
 export function createLessonImageService({
   publicOrigin = process.env.PUBLIC_ORIGIN ?? "https://asklilowl-chatgpt.onrender.com",
   assetTtlSeconds = Number(process.env.LESSON_IMAGE_TTL_SECONDS ?? DEFAULT_TTL_SECONDS),
@@ -120,6 +155,7 @@ export function createLessonImageService({
   maxLessonImageBytes = Number(process.env.LESSON_IMAGE_TOTAL_MAX_BYTES ?? DEFAULT_MAX_LESSON_IMAGE_BYTES),
   maxCacheBytes = Number(process.env.LESSON_IMAGE_CACHE_MAX_BYTES ?? DEFAULT_MAX_CACHE_BYTES),
   maxConcurrentDownloads = DEFAULT_MAX_CONCURRENT_DOWNLOADS,
+  maxConcurrentSearches = DEFAULT_MAX_CONCURRENT_DOWNLOADS,
   maxRedirects = DEFAULT_MAX_REDIRECTS,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   fetchImpl = fetch,
@@ -127,6 +163,7 @@ export function createLessonImageService({
   dispatcherFactory = createPinnedDispatcher,
   idFactory = randomUUID,
   now = Date.now,
+  publicImageProvider = null,
 } = {}) {
   const origin = publicOrigin.replace(/\/+$/, "");
   requirePositiveNumber("assetTtlSeconds", assetTtlSeconds);
@@ -134,6 +171,7 @@ export function createLessonImageService({
   requirePositiveNumber("maxLessonImageBytes", maxLessonImageBytes);
   requirePositiveNumber("maxCacheBytes", maxCacheBytes);
   requirePositiveNumber("maxConcurrentDownloads", maxConcurrentDownloads, { integer: true });
+  requirePositiveNumber("maxConcurrentSearches", maxConcurrentSearches, { integer: true });
   requirePositiveNumber("timeoutMs", timeoutMs);
   if (!Number.isInteger(maxRedirects) || maxRedirects < 0) {
     throw new TypeError("maxRedirects must be a finite non-negative integer.");
@@ -188,6 +226,9 @@ export function createLessonImageService({
         }
         const bytes = await readBoundedBody(response, maxImageBytes);
         if (!bytes.length) throw new Error("Lesson image response was empty.");
+        if (!hasRasterSignature(bytes, contentType)) {
+          throw new Error("SVG or invalid raster lesson image bytes are not supported.");
+        }
         return { bytes, contentType };
       } finally {
         clearTimeout(timeout);
@@ -251,6 +292,47 @@ export function createLessonImageService({
     return staged.map((item) => item.image);
   }
 
+  async function prepareForLesson({ topic = "", audience = "", slides = [], images = [] } = {}) {
+    if (!Array.isArray(slides) || slides.length === 0) {
+      throw new Error("Lesson slides are required before images can be prepared.");
+    }
+    const supplied = Array.isArray(images) ? images : [];
+    const selected = new Array(slides.length);
+    let nextSearchIndex = 0;
+    let searchFailure = null;
+    async function searchWorker() {
+      while (!searchFailure && nextSearchIndex < slides.length) {
+        const index = nextSearchIndex;
+        nextSearchIndex += 1;
+        try {
+          const candidate = supplied[index];
+          if (!publicImageProvider?.find) {
+            if (candidate?.download_url || candidate?.file_id) {
+              selected[index] = candidate;
+              continue;
+            }
+            throw new Error("A relevant public image was not available for every slide.");
+          }
+          const request = buildVisualRequest({ topic, audience, slide: slides[index] });
+          let found = candidate && typeof publicImageProvider.verify === "function"
+            ? await publicImageProvider.verify(candidate, request)
+            : null;
+          if (!found) found = await publicImageProvider.find(request);
+          if (!found || !isAllowedPublicLicense(found)) {
+            throw new Error("A relevant public image was not available for every slide.");
+          }
+          selected[index] = found;
+        } catch (error) {
+          searchFailure ??= error;
+        }
+      }
+    }
+    const searchWorkerCount = Math.max(1, Math.min(maxConcurrentSearches, slides.length));
+    await Promise.all(Array.from({ length: searchWorkerCount }, () => searchWorker()));
+    if (searchFailure) throw searchFailure;
+    return prepareMany(selected);
+  }
+
   function resolve(id) {
     prune();
     const asset = assets.get(String(id));
@@ -258,5 +340,5 @@ export function createLessonImageService({
     return asset;
   }
 
-  return { prepareMany, resolve };
+  return { prepareMany, prepareForLesson, resolve };
 }

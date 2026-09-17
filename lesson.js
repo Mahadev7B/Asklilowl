@@ -18,6 +18,13 @@ export function normalizeImages(input) {
         mimeType: null,
         fileName: `lesson-image-${index + 1}`,
         size: null,
+        title: null,
+        sourcePageUrl: null,
+        creator: null,
+        licenseName: null,
+        licenseUrl: null,
+        sourceOrganization: null,
+        description: null,
       };
     }
 
@@ -32,6 +39,13 @@ export function normalizeImages(input) {
         image?.name ??
         `lesson-image-${index + 1}`,
       size: image?.size ?? null,
+      title: image?.title ?? null,
+      sourcePageUrl: image?.source_page_url ?? image?.sourcePageUrl ?? null,
+      creator: image?.creator ?? null,
+      licenseName: image?.license_name ?? image?.licenseName ?? null,
+      licenseUrl: image?.license_url ?? image?.licenseUrl ?? null,
+      sourceOrganization: image?.source_organization ?? image?.sourceOrganization ?? null,
+      description: image?.description ?? null,
     };
   });
 }

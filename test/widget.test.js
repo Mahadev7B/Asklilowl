@@ -164,6 +164,53 @@ test("widget hides the entire lesson when a required slide image is absent", asy
   assert.equal(dom.window.document.querySelector(".image-placeholder"), null);
 });
 
+test("widget renders safe image credits for attributed public visuals", async (t) => {
+  const { dom } = await loadWidget();
+  t.after(() => dom.window.close());
+  await deliver(dom, lessonResult({
+    images: [
+      {
+        index: 0,
+        url: "https://lesson.example/api/images/one",
+        title: "Wing diagram",
+        creator: "Aviation Teacher",
+        licenseName: "CC BY 4.0",
+        licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+        sourcePageUrl: "https://commons.wikimedia.org/wiki/File:Wing_diagram.png",
+        sourceOrganization: "Wikimedia Commons",
+      },
+      {
+        index: 1,
+        url: "https://lesson.example/api/images/two",
+        title: '<img src=x onerror="window.creditInjected=true">',
+        licenseName: "Public domain",
+        sourcePageUrl: "https://commons.wikimedia.org/wiki/File:Lift.png",
+      },
+      {
+        index: 2,
+        url: "https://lesson.example/api/images/three",
+        title: "Tail feathers",
+        creator: "Example artist",
+        licenseName: "CC0 1.0",
+        licenseUrl: "javascript:alert(1)",
+        sourcePageUrl: "not-a-url",
+      },
+    ],
+  }));
+
+  const document = dom.window.document;
+  const credits = document.querySelector("#image-credits");
+  assert.equal(credits.hidden, false);
+  assert.equal(document.querySelectorAll("#image-credit-list li").length, 3);
+  assert.match(document.querySelector("#image-credit-list li").textContent, /^Wings:/);
+  assert.match(document.querySelector("#image-credit-list").textContent, /Aviation Teacher.*CC BY 4\.0.*Wikimedia Commons/s);
+  assert.match(document.querySelector("#image-credit-list").textContent, /<img src=x onerror=/);
+  assert.equal(dom.window.creditInjected, undefined);
+  const links = [...document.querySelectorAll("#image-credit-list a")];
+  assert.ok(links.every((link) => ["http:", "https:"].includes(new URL(link.href).protocol)));
+  assert.equal(links.some((link) => link.href.startsWith("javascript:")), false);
+});
+
 test("widget restores non-sensitive progress for the same lesson", async (t) => {
   const { dom } = await loadWidget();
   t.after(() => dom.window.close());

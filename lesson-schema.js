@@ -27,6 +27,8 @@ export const INPUT_LIMITS = Object.freeze({
   imageReference: 4_096,
   imageFileName: 255,
   imageMimeType: 100,
+  imageCredit: 300,
+  imageDescription: 600,
   imageBytes: 25 * 1024 * 1024,
 });
 
@@ -80,6 +82,13 @@ const imageObjectSchema = z
     download_url: httpsUrlSchema.optional(),
     file_name: z.string().trim().min(1).max(INPUT_LIMITS.imageFileName).optional(),
     mime_type: z.string().trim().min(1).max(INPUT_LIMITS.imageMimeType).optional(),
+    title: z.string().trim().min(1).max(INPUT_LIMITS.imageCredit).optional(),
+    source_page_url: httpsUrlSchema.optional(),
+    creator: z.string().trim().min(1).max(INPUT_LIMITS.imageCredit).optional(),
+    license_name: z.string().trim().min(1).max(INPUT_LIMITS.imageCredit).optional(),
+    license_url: httpsUrlSchema.optional(),
+    source_organization: z.string().trim().min(1).max(INPUT_LIMITS.imageCredit).optional(),
+    description: z.string().trim().min(1).max(INPUT_LIMITS.imageDescription).optional(),
   })
   .strict()
   .refine((image) => Boolean(image.file_id || image.download_url), {
@@ -91,6 +100,13 @@ const receivedImageObjectSchema = z.object({
   download_url: z.unknown().optional(),
   file_name: z.unknown().optional(),
   mime_type: z.unknown().optional(),
+  title: z.unknown().optional(),
+  source_page_url: z.unknown().optional(),
+  creator: z.unknown().optional(),
+  license_name: z.unknown().optional(),
+  license_url: z.unknown().optional(),
+  source_organization: z.unknown().optional(),
+  description: z.unknown().optional(),
 }).passthrough();
 
 const receivedImagesSchema = z.preprocess(
@@ -141,7 +157,7 @@ export const lessonInputShape = {
     .describe("HTTP(S) source links used for researched or time-sensitive claims."),
   images: receivedImagesSchema
     .optional()
-    .describe("One image object per slide in slide order. Each object must include file_id or download_url, or both. download_url must be a direct HTTPS image URL publicly reachable without login. Optional fields: file_name and mime_type. Bare strings and inline data URIs are not valid images."),
+    .describe("Optional image references retained for compatibility and safe diagnostics. In production, AskLilOwl verifies supplied Commons metadata or replaces the candidate with a license-verified public educational image sourced from the slide's imagePrompt; self-declared attribution is never trusted. A candidate must include file_id or an HTTPS download_url. Bare strings and inline data URIs are invalid."),
 };
 
 export const lessonInputSchema = z.object(lessonInputShape).superRefine((lesson, context) => {
@@ -172,6 +188,13 @@ const normalizedImageSchema = z.object({
   mimeType: z.string().max(INPUT_LIMITS.imageMimeType).nullable(),
   fileName: z.string().min(1).max(INPUT_LIMITS.imageFileName),
   size: z.number().int().nonnegative().max(INPUT_LIMITS.imageBytes).nullable(),
+  title: z.string().max(INPUT_LIMITS.imageCredit).nullable(),
+  sourcePageUrl: httpUrlSchema.nullable(),
+  creator: z.string().max(INPUT_LIMITS.imageCredit).nullable(),
+  licenseName: z.string().max(INPUT_LIMITS.imageCredit).nullable(),
+  licenseUrl: httpUrlSchema.nullable(),
+  sourceOrganization: z.string().max(INPUT_LIMITS.imageCredit).nullable(),
+  description: z.string().max(INPUT_LIMITS.imageDescription).nullable(),
 });
 
 const renderedSlideSchema = slideSchema.extend({
