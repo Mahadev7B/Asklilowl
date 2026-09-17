@@ -281,6 +281,25 @@ test("Wikimedia provider logs a sanitized search failure without the query or UR
   assert.equal("url" in events[0], false);
 });
 
+test("Wikimedia provider logs sanitized nested network error codes", async () => {
+  const events = [];
+  const networkError = new TypeError("fetch failed", {
+    cause: Object.assign(new Error("connection refused"), { code: "ECONNREFUSED" }),
+  });
+  const provider = createWikimediaImageProvider({
+    lookupImpl: publicLookup,
+    logger: { error: (event) => events.push(event) },
+    fetchImpl: async () => { throw networkError; },
+  });
+
+  await assert.rejects(provider.find(buildVisualRequest(visualInput)), /fetch failed/i);
+
+  assert.equal(events[0].causeName, "Error");
+  assert.equal(events[0].causeCode, "ECONNREFUSED");
+  assert.deepEqual(events[0].nestedCodes, []);
+  assert.equal(JSON.stringify(events[0]).includes("connection refused"), false);
+});
+
 test("Wikimedia provider revalidates a supplied Commons candidate from official metadata", async () => {
   const requestedUrls = [];
   const provider = createWikimediaImageProvider({

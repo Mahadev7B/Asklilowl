@@ -342,6 +342,12 @@ export function createWikimediaImageProvider({
       });
       return selected;
     } catch (error) {
+      const cause = error?.cause;
+      const nestedCodes = Array.isArray(cause?.errors)
+        ? [...new Set(cause.errors
+          .map((nested) => typeof nested?.code === "string" ? nested.code : null)
+          .filter(Boolean))]
+        : [];
       logger.error?.({
         event: "public_image_search_failed",
         provider: "wikimedia_commons",
@@ -349,6 +355,9 @@ export function createWikimediaImageProvider({
         errorName: typeof error?.name === "string" ? error.name : "Error",
         status: Number.isSafeInteger(error?.status) ? error.status : null,
         code: typeof error?.code === "string" ? error.code : null,
+        causeName: typeof cause?.name === "string" ? cause.name : null,
+        causeCode: typeof cause?.code === "string" ? cause.code : null,
+        nestedCodes,
         durationMs: Date.now() - startedAt,
       });
       throw error;
