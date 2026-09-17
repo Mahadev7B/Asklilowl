@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import ipaddr from "ipaddr.js";
 import { Agent, fetch as undiciFetch } from "undici";
+import { INPUT_LIMITS } from "./lesson-schema.js";
 
 const WIKIMEDIA_API = "https://commons.wikimedia.org/w/api.php";
 const DEFAULT_TIMEOUT_MS = 8_000;
@@ -26,6 +27,18 @@ function cleanText(value) {
     .replace(/&#39;|&apos;/gi, "'")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function boundedCleanText(value, maximum) {
+  const text = cleanText(value);
+  return text.length <= maximum ? text : text.slice(0, maximum).trim();
+}
+
+function boundedFileName(value) {
+  const name = cleanText(value).replace(/^File:/i, "");
+  if (name.length <= INPUT_LIMITS.imageFileName) return name;
+  const extension = name.match(/\.[a-z0-9]{1,10}$/i)?.[0] ?? "";
+  return `${name.slice(0, INPUT_LIMITS.imageFileName - extension.length).trim()}${extension}`;
 }
 
 function words(value) {
@@ -217,7 +230,7 @@ function metadataValue(metadata, key) {
 function safeHttps(value) {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" ? url.href : null;
+    return url.protocol === "https:" && url.href.length <= INPUT_LIMITS.sourceUrl ? url.href : null;
   } catch {
     return null;
   }
@@ -247,16 +260,26 @@ export function normalizeWikimediaCandidate(page, position = 0) {
   const isSvg = originalMime === "image/svg+xml";
   const rasterUrl = safeHttps(isSvg ? info.thumburl : (info.thumburl ?? info.url));
   const mimeType = isSvg ? "image/png" : originalMime;
-  const licenseName = metadataValue(metadata, "LicenseShortName") || metadataValue(metadata, "UsageTerms");
+  const rawTitle = cleanText(page.title).replace(/^File:/i, "");
+  const licenseName = boundedCleanText(
+    metadataValue(metadata, "LicenseShortName") || metadataValue(metadata, "UsageTerms"),
+    INPUT_LIMITS.imageCredit
+  );
   const candidate = {
-    title: cleanText(page.title).replace(/^File:/i, ""),
-    description: metadataValue(metadata, "ImageDescription") || metadataValue(metadata, "ObjectName"),
+    title: boundedCleanText(rawTitle, INPUT_LIMITS.imageCredit),
+    description: boundedCleanText(
+      metadataValue(metadata, "ImageDescription") || metadataValue(metadata, "ObjectName"),
+      INPUT_LIMITS.imageDescription
+    ) || undefined,
     download_url: rasterUrl,
     mime_type: mimeType,
-    file_name: cleanText(page.title).replace(/^File:/i, "") || `wikimedia-image-${position + 1}`,
+    file_name: boundedFileName(rawTitle) || `wikimedia-image-${position + 1}`,
     source_page_url: safeHttps(info.descriptionurl),
-    creator: metadataValue(metadata, "Artist") || metadataValue(metadata, "Credit"),
-    license_name: licenseName,
+    creator: boundedCleanText(
+      metadataValue(metadata, "Artist") || metadataValue(metadata, "Credit"),
+      INPUT_LIMITS.imageCredit
+    ) || undefined,
+    license_name: licenseName || undefined,
     license_url: safeHttps(metadataValue(metadata, "LicenseUrl")),
     source_organization: "Wikimedia Commons",
     width: Number(info.thumbwidth ?? info.width ?? 0),

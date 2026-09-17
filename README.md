@@ -32,6 +32,8 @@ The production tool. It receives a finished lesson with 3–20 slides, an audien
 
 Production does not trust attribution supplied by the host. It re-fetches official Commons metadata for a suitable supplied candidate or replaces it through public search. Search is serialized to one slide lookup at a time, paces Wikimedia API calls by 1.5 seconds, and retries temporary rate limits with bounded 2s/4s/8s backoff. It uses at most three progressively simplified subject queries per slide and examines 12 results per query. When a slide-specific visual is unavailable, the service makes one broader lesson-topic search under the same license, relevance, raster, and security checks; an unrelated result is rejected even when its license is acceptable.
 
+All public-image metadata is cleaned and bounded to the existing lesson contract before strict validation, so oversized third-party descriptions or credits cannot invalidate an otherwise usable image.
+
 Lesson length is dynamic. Typical guidance is 4–5 slides for a quick topic, 6–8 for a standard topic, 9–12 for a complex topic, and up to 20 for a deep dive. The host model should use only the number needed to teach the topic clearly.
 
 ### `preview_demo_lesson`

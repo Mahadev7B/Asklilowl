@@ -5,6 +5,7 @@ import {
   buildVisualRequest,
   createWikimediaImageProvider,
   isAllowedPublicLicense,
+  normalizeWikimediaCandidate,
   rankPublicImageCandidates,
 } from "../public-images.js";
 
@@ -58,6 +59,29 @@ test("commercial-safe public licenses pass and restricted licenses fail", () => 
   for (const licenseName of ["CC BY-NC-SA 4.0", "CC BY-ND 4.0", "Fair use", "Unknown"]) {
     assert.equal(isAllowedPublicLicense({ licenseName }), false, licenseName);
   }
+});
+
+test("Wikimedia normalization bounds third-party metadata to the lesson contract", () => {
+  const candidate = normalizeWikimediaCandidate({
+    title: `File:${"bridge-".repeat(80)}.png`,
+    imageinfo: [{
+      mime: "image/png",
+      thumburl: "https://upload.wikimedia.org/bridge.png",
+      descriptionurl: "https://commons.wikimedia.org/wiki/File:Bridge.png",
+      extmetadata: {
+        LicenseShortName: { value: `CC BY 4.0 ${"license ".repeat(80)}` },
+        Artist: { value: "Engineer ".repeat(100) },
+        ImageDescription: { value: "A bridge carries loads into its foundations. ".repeat(80) },
+      },
+    }],
+  });
+
+  assert.ok(candidate);
+  assert.ok(candidate.file_name.length <= 255);
+  assert.ok(candidate.title.length <= 300);
+  assert.ok(candidate.creator.length <= 300);
+  assert.ok(candidate.license_name.length <= 300);
+  assert.ok(candidate.description.length <= 600);
 });
 
 test("Wikimedia provider returns an attributed PNG preview for a relevant SVG", async () => {

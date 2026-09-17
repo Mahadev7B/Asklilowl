@@ -82,3 +82,13 @@ These cases remain “Not run” until they are observed inside ChatGPT Develope
 - Voice cost: no narration request was made because image preparation did not complete.
 - API credit balance: `$2.51` before and `$2.51` after the test.
 - Follow-up: pace all Wikimedia API calls and use bounded exponential retry delays before Test 20.
+
+## Test 20 — failed
+
+- Question: `How do bridges stay up?`
+- Build: `03fc21c` (`Pace public image searches`).
+- Entry path: AskLilOwl plugin page → **Try in chat** → **Chat** mode; the user question did not contain a manual app tag.
+- Result: AskLilOwl was invoked and paced image search progressed beyond the prior rate-limit failure. A selected Wikimedia image then carried an `ImageDescription` longer than the plugin's 600-character metadata limit. ChatGPT retried once with simpler slide prompts, but the same unbounded third-party metadata caused the lesson to be withheld atomically.
+- Voice cost: no narration request was made because strict image metadata validation failed before TTS.
+- API credit balance: `$2.51` before and `$2.51` after the test.
+- Follow-up: clean and bound Wikimedia metadata to the existing lesson schema before Test 21.
