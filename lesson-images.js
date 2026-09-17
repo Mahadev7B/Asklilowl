@@ -179,6 +179,9 @@ export function createLessonImageService({
   requirePositiveNumber("maxCacheBytes", maxCacheBytes);
   requirePositiveNumber("maxConcurrentDownloads", maxConcurrentDownloads, { integer: true });
   requirePositiveNumber("maxConcurrentSearches", maxConcurrentSearches, { integer: true });
+  if (maxConcurrentSearches !== 1) {
+    throw new TypeError("maxConcurrentSearches must be 1 for serialized image discovery.");
+  }
   requirePositiveNumber("timeoutMs", timeoutMs);
   if (!Number.isInteger(maxRedirects) || maxRedirects < 0) {
     throw new TypeError("maxRedirects must be a finite non-negative integer.");

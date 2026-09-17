@@ -189,6 +189,64 @@ test("production retains a supplied Commons candidate only after provider verifi
   assert.equal(prepared.source_page_url, verified.source_page_url);
 });
 
+test("a verification rate limit reuses an earlier verified supplied visual", async () => {
+  let verifyCalls = 0;
+  let findCalls = 0;
+  let fetchCalls = 0;
+  const verified = {
+    download_url: "https://upload.wikimedia.org/verified-bridge.png",
+    mime_type: "image/png",
+    source_page_url: "https://commons.wikimedia.org/wiki/File:Verified_bridge.png",
+    license_name: "CC0 1.0",
+    description: "bridge structure",
+  };
+  const service = createLessonImageService({
+    publicOrigin: "https://lesson.example",
+    lookupImpl: publicLookup,
+    logger: { info() {} },
+    publicImageProvider: {
+      async verify() {
+        verifyCalls += 1;
+        if (verifyCalls === 2) {
+          const error = new Error("verification rate limited");
+          error.status = 429;
+          throw error;
+        }
+        return verified;
+      },
+      async find() {
+        findCalls += 1;
+        return null;
+      },
+    },
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      return new Response(PNG_BYTES, { headers: { "content-type": "image/png" } });
+    },
+  });
+
+  const prepared = await service.prepareForLesson({
+    topic: "Bridge engineering",
+    audience: "general learner",
+    slides: [
+      { title: "Deck", body: "The deck carries traffic.", imagePrompt: "bridge deck" },
+      { title: "Beams", body: "Beams resist bending.", imagePrompt: "bridge beams" },
+      { title: "Piers", body: "Piers carry loads downward.", imagePrompt: "bridge piers" },
+    ],
+    images: [
+      { source_page_url: "https://commons.wikimedia.org/wiki/File:Bridge_deck.png" },
+      { source_page_url: "https://commons.wikimedia.org/wiki/File:Bridge_beams.png" },
+      { source_page_url: "https://commons.wikimedia.org/wiki/File:Bridge_piers.png" },
+    ],
+  });
+
+  assert.equal(verifyCalls, 2);
+  assert.equal(findCalls, 0);
+  assert.equal(fetchCalls, 1);
+  assert.equal(prepared.length, 3);
+  assert.equal(new Set(prepared.map((image) => image.download_url)).size, 1);
+});
+
 test("public image discovery bounds concurrent provider lookups", async () => {
   let active = 0;
   let maximumActive = 0;
@@ -485,4 +543,8 @@ test("image service rejects invalid resource-limit configuration", () => {
   ]) {
     assert.throws(() => createLessonImageService(options), /must be a finite positive/i);
   }
+  assert.throws(
+    () => createLessonImageService({ maxConcurrentSearches: 2 }),
+    /serialized/i
+  );
 });

@@ -486,7 +486,11 @@ export function createWikimediaImageProvider({
         signal: controller.signal,
         headers: { "user-agent": "AskLilOwl/0.4 educational image search" },
       });
-      if (!response.ok) throw new Error("Public image verification was unavailable.");
+      if (!response.ok) {
+        const error = new Error("Public image verification was unavailable.");
+        error.status = response.status;
+        throw error;
+      }
       const payload = await readBoundedJson(response);
       const pages = Array.isArray(payload?.query?.pages)
         ? payload.query.pages

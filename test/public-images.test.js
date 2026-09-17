@@ -441,6 +441,21 @@ test("Wikimedia provider revalidates a supplied Commons candidate from official 
   assert.equal(verified.license_name, "CC0 1.0");
 });
 
+test("Wikimedia verification preserves a terminal rate-limit status", async () => {
+  const provider = createWikimediaImageProvider({
+    lookupImpl: publicLookup,
+    rateLimitRetries: 0,
+    fetchImpl: async () => new Response("rate limited", { status: 429 }),
+  });
+
+  await assert.rejects(provider.verify({
+    source_page_url: "https://commons.wikimedia.org/wiki/File:Bridge.png",
+  }, buildVisualRequest(visualInput)), (error) => {
+    assert.equal(error.status, 429);
+    return true;
+  });
+});
+
 test("Wikimedia verification treats malformed encoded source titles as unsuitable", async () => {
   let fetchCalls = 0;
   const provider = createWikimediaImageProvider({
