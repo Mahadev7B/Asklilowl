@@ -252,6 +252,7 @@ export function createWikimediaImageProvider({
 } = {}) {
   async function find(request) {
     const startedAt = Date.now();
+    const queryHash = createHash("sha256").update(String(request.query ?? "")).digest("hex").slice(0, 12);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     let dispatcher;
@@ -293,7 +294,11 @@ export function createWikimediaImageProvider({
           signal: controller.signal,
           headers: { "user-agent": "AskLilOwl/0.4 educational image search" },
         });
-        if (!response.ok) throw new Error("Public image search was unavailable.");
+        if (!response.ok) {
+          const error = new Error("Public image search was unavailable.");
+          error.status = response.status;
+          throw error;
+        }
         const payload = await readBoundedJson(response);
         const pages = Array.isArray(payload?.query?.pages)
           ? payload.query.pages
@@ -320,7 +325,7 @@ export function createWikimediaImageProvider({
       logger.info?.({
         event: "public_image_search_completed",
         provider: "wikimedia_commons",
-        queryHash: createHash("sha256").update(String(request.query ?? "")).digest("hex").slice(0, 12),
+        queryHash,
         attemptCount,
         candidateCount: candidates.length,
         rejectionCounts,
@@ -331,6 +336,17 @@ export function createWikimediaImageProvider({
         durationMs: Date.now() - startedAt,
       });
       return selected;
+    } catch (error) {
+      logger.error?.({
+        event: "public_image_search_failed",
+        provider: "wikimedia_commons",
+        queryHash,
+        errorName: typeof error?.name === "string" ? error.name : "Error",
+        status: Number.isSafeInteger(error?.status) ? error.status : null,
+        code: typeof error?.code === "string" ? error.code : null,
+        durationMs: Date.now() - startedAt,
+      });
+      throw error;
     } finally {
       clearTimeout(timeout);
       if (typeof dispatcher?.destroy === "function") await dispatcher.destroy();

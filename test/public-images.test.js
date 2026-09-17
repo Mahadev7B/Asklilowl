@@ -244,6 +244,24 @@ test("Wikimedia provider rejects oversized API responses", async () => {
   await assert.rejects(provider.find(buildVisualRequest(visualInput)), /response was too large/i);
 });
 
+test("Wikimedia provider logs a sanitized search failure without the query or URL", async () => {
+  const events = [];
+  const provider = createWikimediaImageProvider({
+    lookupImpl: publicLookup,
+    logger: { error: (event) => events.push(event) },
+    fetchImpl: async () => new Response("blocked", { status: 429 }),
+  });
+
+  await assert.rejects(provider.find(buildVisualRequest(visualInput)), /unavailable/i);
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].event, "public_image_search_failed");
+  assert.equal(events[0].status, 429);
+  assert.equal(typeof events[0].queryHash, "string");
+  assert.equal("query" in events[0], false);
+  assert.equal("url" in events[0], false);
+});
+
 test("Wikimedia provider revalidates a supplied Commons candidate from official metadata", async () => {
   const requestedUrls = [];
   const provider = createWikimediaImageProvider({
