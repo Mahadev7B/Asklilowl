@@ -70,3 +70,9 @@ The controller separately confirmed the protected dirty files `public-images.js`
 - The requested independent code-review dispatch was not performed because this task explicitly prohibited agents. The controller will perform the final focused review and decide whether external deployment may proceed.
 
 Offline result: local package, workflow documentation, Windows tests, evals, and dry-run contents are verified. Release readiness is not claimed until the Linux and supervised live gates pass.
+
+## Focused review fix round 1
+
+The controller's focused review approved the remaining requirements and identified one Important documentation omission: the README did not state the exact combined 4,096-character narration bound beside the shared 3–20-slide and quiz contract. The README now states that exact bound and makes clear that it applies to both native and diagram lesson flows.
+
+This was a prose-only correction, so no behavior test or full-suite rerun was added. File-line inspection verified the updated shared contract. `git diff --check` exited 0 and emitted only the existing Windows warning: `LF will be replaced by CRLF the next time Git touches it` for the edited README and report; no global or repository line-ending configuration was changed.

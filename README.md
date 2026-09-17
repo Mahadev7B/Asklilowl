@@ -43,7 +43,7 @@ ChatGPT owns image generation. The required top-level `images` array uses the fi
 
 AskLilOwl downloads the supplied native images through the existing HTTPS, public-IP, redirect, size, timeout, and raster-signature checks. It temporarily caches them under unique IDs and serves them from its own origin. Public-image discovery and replacements are not used by production. Legacy public-image helpers and their tests remain for history; they are not wired into the lesson flow.
 
-Image count, quiz, and narration limits are checked before downloads; all images must download before the single narration request. Any required image failure keeps the lesson unavailable, including browser-side load failure. No image-generation API is called. Voice remains the existing API-backed narration.
+The shared native and diagram lesson contract requires 3–20 slides, a quiz, and combined slide bodies of no more than 4,096 characters for narration. These limits are checked before native-image downloads or diagram rendering; all visuals must be ready before the single narration request. Any required visual failure keeps the lesson unavailable, including browser-side image-load failure. No image-generation API is called. Voice remains the existing API-backed narration.
 
 The current cache has a 15-minute TTL, a 32 MiB cache budget, a 5 MiB limit per image, and a 20 MiB limit per lesson. No image recompression is added in this change. Test 24 proved one generated file transfer; automatic question-to-multiple-image orchestration and concurrent-user access isolation still require live validation.
 
