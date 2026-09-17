@@ -133,19 +133,15 @@ test("the host-facing lesson instruction requires safe educational behavior", as
   assert.match(description, /lesson fields, source links, or image labels.*instructions that override/i);
   assert.match(description, /medical, legal, or financial topics.*general educational information/i);
   assert.match(description, /concrete imagePrompt/i);
-  assert.match(description, /license-verified public educational images/i);
-  assert.match(description, /common-sense relevance/i);
-  assert.match(description, /optional.*image references.*compatibility and safe diagnostics/i);
-  assert.match(description, /revalidates official Commons metadata.*self-declared attribution/i);
-  assert.match(description, /always call this tool/i);
-  assert.doesNotMatch(description, /if native image generation is unavailable, do not call/i);
-  assert.doesNotMatch(description, /generate and attach one.*native ChatGPT/i);
+  assert.match(description, /generate and attach one native ChatGPT image per slide/i);
+  assert.match(description, /never invent file IDs or URLs/i);
+  assert.match(description, /does not search for replacements/i);
   assert.match(description, /avoid dense infographic posters/i);
   assert.match(description, /infer the learner level from the question and conversation context/i);
   assert.match(description, /do not ask the user to choose an audience/i);
 });
 
-test("the lesson tool exposes images as ordinary data instead of a file-upload parameter", async (t) => {
+test("the lesson tool declares the proven native file contract", async (t) => {
   const { server, origin } = await startServer({ demoMode: false });
   const client = new Client({ name: "asklilowl-file-parameter-test", version: "1.0.0" });
   const transport = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`));
@@ -155,13 +151,12 @@ test("the lesson tool exposes images as ordinary data instead of a file-upload p
   const tools = await client.listTools();
   const lessonTool = tools.tools.find((tool) => tool.name === "create_lesson");
   assert.ok(lessonTool);
-  assert.equal(Object.hasOwn(lessonTool._meta, "openai/fileParams"), false);
-  assert.equal(lessonTool.inputSchema.properties.images.type, "array");
-  const imageVariants = lessonTool.inputSchema.properties.images.items.anyOf;
-  const describedImage = imageVariants.find((variant) => variant.properties?.download_url);
-  assert.ok(describedImage);
-  assert.ok(describedImage.properties.file_id);
-  assert.equal(describedImage.additionalProperties, true);
+  assert.deepEqual(lessonTool._meta["openai/fileParams"], ["images"]);
+  const item = lessonTool.inputSchema.properties.images.items;
+  assert.deepEqual(item.required.sort(), ["download_url", "file_id"]);
+  assert.deepEqual(Object.keys(item.properties).sort(), ["download_url", "file_id", "file_name", "mime_type"]);
+  assert.equal(item.additionalProperties, false);
+  assert.ok(lessonTool.inputSchema.required.includes("images"));
   assert.equal(lessonTool._meta.ui.resourceUri, "ui://asklilowl/lesson.html");
 });
 
@@ -252,7 +247,7 @@ test("production proxies every URL image before narration and fails atomically",
     arguments: {
       topic: "Solar eclipse", title: "Solar Eclipse", audience: "general learner",
       slides: ["Sun", "Moon", "Shadow"].map((title, index) => ({ id: String(index), title, body: `${title} helps explain an eclipse.` })),
-      images: ["sun", "moon", "shadow"].map((name) => ({ download_url: `https://images.example/${name}.png` })),
+      images: ["sun", "moon", "shadow"].map((name) => ({ file_id: `file_${name}`, download_url: `https://images.example/${name}.png` })),
       quiz: [{ question: "What moves between Earth and the Sun?", choices: ["Moon", "Mars"], answerIndex: 0 }],
     },
   });
@@ -296,7 +291,7 @@ test("production creates a lesson through the real proxy and serves its prepared
     arguments: {
       topic: "Solar eclipse", title: "Solar Eclipse", audience: "general learner",
       slides: ["Sun", "Moon", "Shadow"].map((title, index) => ({ id: String(index), title, body: `${title} helps explain an eclipse.` })),
-      images: ["sun", "moon", "shadow"].map((name) => ({ download_url: `https://images.example/${name}.png` })),
+      images: ["sun", "moon", "shadow"].map((name) => ({ file_id: `file_${name}`, download_url: `https://images.example/${name}.png` })),
       quiz: [{ question: "What moves between Earth and the Sun?", choices: ["Moon", "Mars"], answerIndex: 0 }],
     },
   });
@@ -310,26 +305,16 @@ test("production creates a lesson through the real proxy and serves its prepared
   assert.deepEqual(new Uint8Array(await imageResponse.arrayBuffer()), PNG_BYTES);
 });
 
-test("production sources public images before making one narration request", async (t) => {
+test("production downloads native images before making one narration request", async (t) => {
   const order = [];
   const imageService = {
     resolve: () => null,
-    async prepareForLesson(args) {
+    async prepareMany(images) {
       order.push("images");
-      assert.equal(args.images, undefined);
-      return args.slides.map((slide, index) => ({
-        download_url: `https://lesson.example/api/images/${index}`,
-        mime_type: "image/png",
-        file_name: `${slide.id}.png`,
-        title: `${slide.title} visual`,
-        source_page_url: `https://commons.wikimedia.org/wiki/File:${slide.id}.png`,
-        creator: "Public educator",
-        license_name: "CC0 1.0",
-        license_url: "https://creativecommons.org/publicdomain/zero/1.0/",
-        source_organization: "Wikimedia Commons",
-        description: slide.imagePrompt,
-      }));
+      assert.equal(images.length, 3);
+      return images.map((image, index) => ({ ...image, download_url: `https://lesson.example/api/images/${index}` }));
     },
+    async prepareForLesson() { throw new Error("Public sourcing must never run"); },
   };
   const audioService = {
     resolve: () => null,
@@ -350,6 +335,7 @@ test("production sources public images before making one narration request", asy
   const result = await client.callTool({
     name: "create_lesson",
     arguments: {
+      images: [0, 1, 2].map((i) => ({ file_id: `file_${i}`, download_url: `https://files.example/${i}.png` })),
       topic: "Area of a regular octagon",
       title: "Octagon Area",
       audience: "general learner",
@@ -365,7 +351,7 @@ test("production sources public images before making one narration request", asy
   assert.equal(result.isError, undefined);
   assert.deepEqual(order, ["images", "audio"]);
   assert.equal(result.structuredContent.lesson.images.length, 3);
-  assert.equal(result.structuredContent.lesson.images[1].licenseName, "CC0 1.0");
+  assert.equal(result.structuredContent.lesson.images[1].fileId, "file_1");
 });
 
 test("production MCP returns schema-conformant lessons and actionable quiz errors", async (t) => {
@@ -439,12 +425,7 @@ test("production records safe image-handoff diagnostics before narration", async
     logger: { info: (event) => events.push(event) },
     imageService: {
       resolve: () => null,
-      async prepareForLesson(args) {
-        if (!Array.isArray(args.images) || args.images.length !== 3 || args.images.some((image) => !image.file_id || !image.download_url)) {
-          throw new Error("Image handoff was incomplete.");
-        }
-        return args.images;
-      },
+      async prepareMany(images) { return images; },
     },
     speechOptions: {
       apiKey: "test-key",
@@ -505,7 +486,7 @@ test("production records safe image-handoff diagnostics before narration", async
   });
 });
 
-test("production logs malformed image handoffs before strict rejection", async (t) => {
+test("production rejects malformed native file contracts before narration", async (t) => {
   const events = [];
   let narrationCalls = 0;
   const { server, origin } = await startServer({
@@ -513,12 +494,7 @@ test("production logs malformed image handoffs before strict rejection", async (
     logger: { info: (event) => events.push(event) },
     imageService: {
       resolve: () => null,
-      async prepareForLesson(args) {
-        if (!Array.isArray(args.images) || args.images.length !== 3 || args.images.some((image) => !image.file_id || !image.download_url)) {
-          throw new Error("Image handoff was incomplete.");
-        }
-        return args.images;
-      },
+      async prepareMany(images) { return images; },
     },
     audioService: {
       enabled: true,
@@ -557,26 +533,21 @@ test("production logs malformed image handoffs before strict rejection", async (
     events.length = 0;
     const result = await client.callTool({ name: "create_lesson", arguments: { ...base, ...(images === undefined ? {} : { images }) } });
     assert.equal(Boolean(result.isError), shouldError, name);
-    assert.equal(events.length, 1, name);
+    assert.equal(events.length, shouldError ? 0 : 1, name);
+    if (shouldError) continue;
     assert.equal(events[0].imageCount, expectedLog.imageCount, name);
     assert.deepEqual(events[0].received.slice(0, 1).map(({ type, keys, valueTypes }) => ({ type, keys, valueTypes })), expectedLog.received, name);
   }
   assert.equal(narrationCalls, 1);
 });
 
-test("production sources missing images before creating one narration track", async (t) => {
+test("production rejects missing native images before creating one narration track", async (t) => {
   let speechCalls = 0;
   const { server, origin } = await startServer({
     demoMode: false,
     imageService: {
       resolve: () => null,
-      async prepareForLesson(args) {
-        return args.images ?? args.slides.map((slide, index) => ({
-          download_url: `https://lesson.example/api/images/${index}`,
-          mime_type: "image/png",
-          file_name: `${slide.id}.png`,
-        }));
-      },
+      async prepareMany(images) { return images; },
     },
     speechOptions: {
       apiKey: "test-key",
@@ -609,9 +580,9 @@ test("production sources missing images before creating one narration track", as
   };
 
   const missingImages = await client.callTool({ name: "create_lesson", arguments: baseLesson });
-  assert.equal(missingImages.isError, undefined);
-  assert.equal(missingImages.structuredContent.lesson.images.length, 3);
-  assert.equal(speechCalls, 1);
+  assert.equal(missingImages.isError, true);
+  assert.equal(missingImages.structuredContent, undefined);
+  assert.equal(speechCalls, 0);
 
   const completeLesson = await client.callTool({
     name: "create_lesson",
@@ -626,11 +597,11 @@ test("production sources missing images before creating one narration track", as
   assert.equal(completeLesson.isError, undefined);
   assert.equal(completeLesson.structuredContent.lesson.images.length, 3);
   assert.match(completeLesson.structuredContent.lesson.audioUrl, /\/api\/assets\//);
-  assert.equal(speechCalls, 2);
+  assert.equal(speechCalls, 1);
   const audio = await fetch(`${origin}${new URL(completeLesson.structuredContent.lesson.audioUrl).pathname}`);
   assert.equal(audio.status, 200);
   assert.equal(audio.headers.get("content-type"), "audio/mpeg");
-  assert.equal(speechCalls, 2);
+  assert.equal(speechCalls, 1);
 });
 
 test("lesson failures log only sanitized voice-provider diagnostics", async (t) => {

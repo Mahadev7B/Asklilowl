@@ -197,6 +197,32 @@ const normalizedImageSchema = z.object({
   description: z.string().max(INPUT_LIMITS.imageDescription).nullable(),
 });
 
+// ChatGPT rewrites real generated file paths into these objects. Keep this
+// exact file shape separate from legacy/demo image normalization.
+export const nativeLessonInputShape = {
+  ...lessonInputShape,
+  images: z.array(z.object({
+    download_url: z.string(),
+    file_id: z.string(),
+    mime_type: z.string().optional(),
+    file_name: z.string().optional(),
+  }).strict()).min(3).max(INPUT_LIMITS.images).describe(
+    "Required native ChatGPT-generated image files, exactly one per slide in slide order. Pass actual generated files; ChatGPT supplies file_id and download_url. Never invent references or substitute public web images."
+  ),
+};
+
+export function validateNativeLessonInput(input) {
+  const args = z.object(nativeLessonInputShape).parse(input);
+  for (const image of args.images) {
+    boundedText("Native file id", 256).parse(image.file_id);
+    httpsUrlSchema.parse(image.download_url);
+  }
+  if (args.images.length !== args.slides.length) {
+    throw new RangeError("AskLilOwl requires one native image per slide.");
+  }
+  return args;
+}
+
 const renderedSlideSchema = slideSchema.extend({
   number: z.number().int().positive(),
   imageIndex: z.number().int().nonnegative().nullable(),

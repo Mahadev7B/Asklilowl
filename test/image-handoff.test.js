@@ -29,8 +29,8 @@ test("in-memory production handoff accepts references and rejects malformed imag
   };
   const privateUrl = "https://private-user:private-password@images.example:8443/private-path.png?token=private-token#private-fragment";
   const cases = [
-    [{ file_id: "private-file-id" }, "file", null, true],
-    [{ download_url: privateUrl }, "url", "https://images.example:8443", true],
+    [{ file_id: "private-file-id" }, "file", null, false],
+    [{ download_url: privateUrl }, "url", "https://images.example:8443", false],
     [{ file_id: "private-file-id", download_url: privateUrl }, "both", "https://images.example:8443", true],
     [{}, "neither", null, false],
     [{ download_url: "invalid-private-url" }, "url", null, false],
@@ -44,7 +44,9 @@ test("in-memory production handoff accepts references and rejects malformed imag
     const result = await client.callTool({ name: "create_lesson", arguments: { ...base, images: base.slides.map(() => image) } });
     assert.equal(Boolean(result.isError), !accepted);
     assert.equal(audioCalls - before, accepted ? 1 : 0);
-    assert.equal(events.length, 1);
+    const reachesHandler = typeof image === "object" && typeof image.file_id === "string" && typeof image.download_url === "string" && !Object.hasOwn(image, "extra");
+    assert.equal(events.length, reachesHandler ? 1 : 0);
+    if (!reachesHandler) continue;
     assert.equal(events[0].imageCount, 3);
     for (const received of events[0].received) {
       assert.equal(received.referenceKind, referenceKind);

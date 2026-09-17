@@ -28,13 +28,17 @@ The user does not need to configure a model inside AskLilOwl. The widget communi
 
 ### `create_lesson`
 
-The production tool. It receives a finished lesson with 3–20 slides, an audience level, learning objectives, a quiz, optional source links, concrete slide image prompts, and optional attributed public-image candidates.
+The production tool receives a finished lesson with 3–20 slides, an audience level, learning objectives, a quiz, optional source links, and exactly one native ChatGPT-generated image file per slide.
 
-Production does not trust attribution supplied by the host. It re-fetches official Commons metadata for a suitable supplied candidate or replaces it through public search. Search is serialized to one slide lookup at a time, paces Wikimedia API calls by 1.5 seconds, and retries temporary rate limits with bounded 2s/4s/8s backoff. It uses at most three progressively simplified subject queries per slide and examines 12 results per query. Every accepted candidate must name at least one meaningful lesson-subject term in its official title or description; matching only generic slide words is insufficient. When a slide-specific visual is unavailable, the service makes one broader lesson-topic search under the same license, relevance, raster, and security checks; an unrelated result is rejected even when its license is acceptable. If Wikimedia rate-limits the lesson after at least one licensed visual has already been verified, the remaining slides reuse that verified visual instead of losing the complete lesson. Reused assets are downloaded and cached only once.
+ChatGPT owns image generation. The required top-level `images` array uses the file contract verified in Test 24: `file_id` and `download_url` are required strings; `mime_type` and `file_name` are declared optional strings. The tool advertises `openai/fileParams: ["images"]` so the host can rewrite actual generated file paths into downloadable file objects. URL-only objects, file-ID-only objects, bare strings, extra fields, and inline data URIs are rejected at the MCP boundary. Shape rejections occur before handler diagnostics; accepted calls retain safe field/type/origin logs.
 
-All public-image metadata is cleaned and bounded to the existing lesson contract before strict validation, so oversized third-party descriptions or credits cannot invalidate an otherwise usable image.
+AskLilOwl downloads the supplied native images through the existing HTTPS, public-IP, redirect, size, timeout, and raster-signature checks. It temporarily caches them under unique IDs and serves them from its own origin. Public-image discovery and replacements are not used by production. Legacy public-image helpers and their tests remain for history; they are not wired into the lesson flow.
 
-Lesson length is dynamic. Typical guidance is 4–5 slides for a quick topic, 6–8 for a standard topic, 9–12 for a complex topic, and up to 20 for a deep dive. The host model should use only the number needed to teach the topic clearly.
+Image count, quiz, and narration limits are checked before downloads; all images must download before the single narration request. Any required image failure keeps the lesson unavailable, including browser-side load failure. No image-generation API is called. Voice remains the existing API-backed narration.
+
+The current cache has a 15-minute TTL, a 32 MiB cache budget, a 5 MiB limit per image, and a 20 MiB limit per lesson. No image recompression is added in this change. Test 24 proved one generated file transfer; automatic question-to-multiple-image orchestration and concurrent-user access isolation still require live validation.
+
+Lesson length is dynamic: use only the slides needed to explain the question clearly, within the existing 3–20 limit.
 
 ### `preview_demo_lesson`
 
@@ -98,7 +102,7 @@ Choose **Streamable HTTP**, connect to `http://localhost:8787/mcp`, select `prev
 
 ## Deployment
 
-`render.yaml` defines the Render web service with `/healthz` as its health check. Configure `PUBLIC_ORIGIN` to the service's public HTTPS origin if it differs from the default, set `OPENAI_API_KEY` and `VOICE_TOKEN_SECRET` for narration, and optionally adjust `PUBLIC_IMAGE_SEARCH_TIMEOUT_MS` from its 8-second default. Public image search needs no image-provider credential or paid image API. Do not set `ASKLILOWL_DEMO_MODE` in production.
+`render.yaml` defines the Render web service with `/healthz` as its health check. Configure `PUBLIC_ORIGIN` to the service's public HTTPS origin if it differs from the default, and set `OPENAI_API_KEY` and `VOICE_TOKEN_SECRET` for narration. No image-provider API key is needed. Public-image search settings are inactive. Do not set `ASKLILOWL_DEMO_MODE` in production.
 
 ## Plugin package
 
@@ -109,7 +113,7 @@ Choose **Streamable HTTP**, connect to `http://localhost:8787/mcp`, select `prev
 - `evals/cases.json` contains versioned tool-selection and product-quality cases.
 - `submission/` contains listing copy, review cases, and the live-test record.
 
-The package intentionally has no bundled model setting or `Thinking` control. The active ChatGPT conversation owns model routing, research, writing, and the per-slide visual intent; AskLilOwl owns licensed public-image retrieval and validation.
+The package intentionally has no bundled model setting or `Thinking` control. The active ChatGPT conversation owns model routing, research, writing, and native image generation; AskLilOwl downloads, validates, and temporarily caches those files.
 
 ## Limits and operational safeguards
 
