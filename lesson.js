@@ -58,15 +58,7 @@ function estimateNarrationSeconds(narration) {
 }
 
 export function buildLesson(args, { isDemo = false, speechService = null, images: preparedImages, audioUrl: preparedAudioUrl, voice: preparedVoice } = {}) {
-  const invalidQuiz = args.quiz.find(
-    (item) => item.answerIndex < 0 || item.answerIndex >= item.choices.length
-  );
-
-  if (invalidQuiz) {
-    throw new RangeError(
-      "A quiz question has an answerIndex outside its choices array."
-    );
-  }
+  validateLessonContent(args);
 
   const images = normalizeImages(preparedImages ?? args.images);
   if (!isDemo && images.length !== args.slides.length) {
@@ -91,10 +83,6 @@ export function buildLesson(args, { isDemo = false, speechService = null, images
     cueSeconds += estimateNarrationSeconds(narration);
     return renderedSlide;
   });
-  const lessonNarration = slides.map((slide) => slide.narration).join("\n\n");
-  if (lessonNarration.length > 4_096) {
-    throw new RangeError("Lesson narration is too long for one voice track. Please use fewer slides or make each narration more concise.");
-  }
 
   return lessonOutputSchema.parse({
     topic: args.topic,
@@ -113,4 +101,21 @@ export function buildLesson(args, { isDemo = false, speechService = null, images
     isDemo,
     voice: preparedVoice ?? speechService?.metadata?.() ?? disabledVoice,
   });
+}
+
+export function validateLessonContent(args) {
+  const invalidQuiz = args.quiz.find(
+    (item) => item.answerIndex < 0 || item.answerIndex >= item.choices.length
+  );
+
+  if (invalidQuiz) {
+    throw new RangeError(
+      "A quiz question has an answerIndex outside its choices array."
+    );
+  }
+
+  const lessonNarration = args.slides.map((slide) => slide.body).join("\n\n");
+  if (lessonNarration.length > 4_096) {
+    throw new RangeError("Lesson narration is too long for one voice track. Please use fewer slides or make each narration more concise.");
+  }
 }

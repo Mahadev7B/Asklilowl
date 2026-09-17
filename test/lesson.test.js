@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildLesson } from "../lesson.js";
+import { buildLesson, validateLessonContent } from "../lesson.js";
 import { lessonInputSchema } from "../lesson-schema.js";
 import { createSpeechService } from "../speech.js";
 
@@ -183,6 +183,24 @@ test("buildLesson rejects a quiz answer outside the choices array", () => {
       message:
         "A quiz question has an answerIndex outside its choices array.",
     }
+  );
+});
+
+test("validateLessonContent checks quiz and narration without requiring images", () => {
+  assert.doesNotThrow(() => validateLessonContent(validLessonInput));
+  assert.throws(
+    () => validateLessonContent({
+      ...validLessonInput,
+      quiz: [{ question: "Pick one", choices: ["A", "B"], answerIndex: 2 }],
+    }),
+    /answerIndex outside its choices array/
+  );
+  assert.throws(
+    () => validateLessonContent({
+      ...validLessonInput,
+      slides: validLessonInput.slides.map((slide, index) => ({ ...slide, body: `${index}`.repeat(1_400) })),
+    }),
+    /narration is too long/
   );
 });
 
