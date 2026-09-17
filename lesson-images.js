@@ -154,6 +154,52 @@ function hasRasterSignature(bytes, contentType) {
   return false;
 }
 
+const CRC32_TABLE = Uint32Array.from({ length: 256 }, (_, value) => {
+  let crc = value;
+  for (let bit = 0; bit < 8; bit += 1) {
+    crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  return crc >>> 0;
+});
+
+function crc32(bytes, start, end) {
+  let crc = 0xffffffff;
+  for (let index = start; index < end; index += 1) {
+    crc = CRC32_TABLE[(crc ^ bytes[index]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function hasValidPngChunks(bytes, width, height) {
+  if (!hasRasterSignature(bytes, "image/png")) return false;
+  let offset = 8;
+  let chunkIndex = 0;
+  let sawIdat = false;
+  while (offset + 12 <= bytes.length) {
+    const length = bytes.readUInt32BE(offset);
+    const dataStart = offset + 8;
+    const dataEnd = dataStart + length;
+    const chunkEnd = dataEnd + 4;
+    if (chunkEnd > bytes.length) return false;
+    const type = bytes.toString("ascii", offset + 4, offset + 8);
+    if (!/^[A-Za-z]{4}$/.test(type)) return false;
+    if (bytes.readUInt32BE(dataEnd) !== crc32(bytes, offset + 4, dataEnd)) return false;
+    if (chunkIndex === 0) {
+      if (type !== "IHDR" || length !== 13 ||
+          bytes.readUInt32BE(dataStart) !== width || bytes.readUInt32BE(dataStart + 4) !== height) {
+        return false;
+      }
+    } else if (type === "IHDR") {
+      return false;
+    }
+    if (type === "IDAT") sawIdat = true;
+    if (type === "IEND") return length === 0 && sawIdat && chunkEnd === bytes.length;
+    offset = chunkEnd;
+    chunkIndex += 1;
+  }
+  return false;
+}
+
 export function createLessonImageService({
   publicOrigin = process.env.PUBLIC_ORIGIN ?? "https://asklilowl-chatgpt.onrender.com",
   assetTtlSeconds = Number(process.env.LESSON_IMAGE_TTL_SECONDS ?? DEFAULT_TTL_SECONDS),
@@ -394,9 +440,7 @@ export function createLessonImageService({
         throw new TypeError("Each local lesson image must be a valid 1200x675 PNG buffer.");
       }
       const bytes = Buffer.from(input);
-      const validDimensions = bytes.length >= 24 &&
-        bytes.readUInt32BE(16) === 1200 && bytes.readUInt32BE(20) === 675;
-      if (!hasRasterSignature(bytes, "image/png") || !validDimensions) {
+      if (!hasValidPngChunks(bytes, 1200, 675)) {
         throw new Error("Each local lesson image must be a valid 1200x675 PNG.");
       }
       if (bytes.length > maxImageBytes) {

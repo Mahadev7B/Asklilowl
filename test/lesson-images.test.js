@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { deflateSync } from "node:zlib";
 
 import { createLessonImageService } from "../lesson-images.js";
 
@@ -9,16 +10,40 @@ const PNG_BYTES = new Uint8Array(Buffer.from(
   "base64"
 ));
 
-function localDiagramPng(size = PNG_BYTES.byteLength) {
-  const minimumSize = PNG_BYTES.byteLength;
-  const bytes = Buffer.alloc(Math.max(size, minimumSize));
-  Buffer.from(PNG_BYTES).copy(bytes);
-  bytes.writeUInt32BE(1200, 16);
-  bytes.writeUInt32BE(675, 20);
-  if (bytes.length > minimumSize) {
-    Buffer.from(PNG_BYTES).subarray(-12).copy(bytes, bytes.length - 12);
+function testCrc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
   }
-  return bytes;
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type, data = Buffer.alloc(0)) {
+  const typeBytes = Buffer.from(type, "ascii");
+  const chunk = Buffer.alloc(data.length + 12);
+  chunk.writeUInt32BE(data.length, 0);
+  typeBytes.copy(chunk, 4);
+  data.copy(chunk, 8);
+  chunk.writeUInt32BE(testCrc32(Buffer.concat([typeBytes, data])), chunk.length - 4);
+  return chunk;
+}
+
+function localDiagramPng(minimumSize = 0) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(1200, 0);
+  ihdr.writeUInt32BE(675, 4);
+  ihdr.set([8, 6, 0, 0, 0], 8);
+  const scanlines = Buffer.alloc((1200 * 4 + 1) * 675);
+  const chunks = [pngChunk("IHDR", ihdr), pngChunk("IDAT", deflateSync(scanlines))];
+  const baseSize = 8 + chunks.reduce((total, chunk) => total + chunk.length, 0) + 12;
+  if (minimumSize > baseSize) {
+    chunks.push(pngChunk("ruSt", Buffer.alloc(Math.max(0, minimumSize - baseSize - 12))));
+  }
+  chunks.push(pngChunk("IEND"));
+  return Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), ...chunks]);
 }
 
 test("image service stores a bounded public raster image behind the AskLilOwl origin", async () => {
@@ -573,6 +598,21 @@ test("local PNG batch validation is atomic when the last member is malformed", (
   assert.equal(service.resolve("local-1"), null);
 });
 
+test("local PNG batch validation rejects a CRC-corrupted member atomically", () => {
+  let nextId = 0;
+  const corrupted = localDiagramPng();
+  const idatOffset = corrupted.indexOf(Buffer.from("IDAT", "ascii")) + 4;
+  corrupted[idatOffset] ^= 0x01;
+  const service = createLessonImageService({ idFactory: () => `local-${++nextId}` });
+
+  assert.throws(
+    () => service.storePngBatch([localDiagramPng(), corrupted]),
+    /valid 1200x675 PNG/i
+  );
+  assert.equal(nextId, 0);
+  assert.equal(service.resolve("local-1"), null);
+});
+
 test("local PNG batches reject the per-image and aggregate lesson byte limits", () => {
   const service = createLessonImageService();
 
@@ -632,8 +672,8 @@ test("a successful local PNG batch remains resolvable with PNG metadata", () => 
   assert.notEqual(stored[0].download_url, stored[1].download_url);
   assert.deepEqual(Object.keys(stored[0]).sort(), ["download_url", "file_name", "mime_type", "size"]);
   assert.deepEqual(stored.map(({ mime_type, file_name, size }) => ({ mime_type, file_name, size })), [
-    { mime_type: "image/png", file_name: "lesson-diagram-1.png", size: PNG_BYTES.byteLength },
-    { mime_type: "image/png", file_name: "lesson-diagram-2.png", size: PNG_BYTES.byteLength },
+    { mime_type: "image/png", file_name: "lesson-diagram-1.png", size: localDiagramPng().byteLength },
+    { mime_type: "image/png", file_name: "lesson-diagram-2.png", size: localDiagramPng().byteLength },
   ]);
   for (const asset of stored) {
     const id = new URL(asset.download_url).pathname.split("/").pop();
