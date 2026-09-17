@@ -13,8 +13,10 @@ const MAX_API_RESPONSE_BYTES = 1024 * 1024;
 const SEARCH_RESULT_LIMIT = 12;
 const RASTER_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const SEARCH_STOP_WORDS = new Set([
-  "and", "are", "diagram", "educational", "for", "from", "how", "illustration", "image",
-  "into", "its", "labeled", "simple", "showing", "that", "the", "this", "visual", "with",
+  "and", "are", "calculate", "diagram", "does", "educational", "explain", "for", "from",
+  "happen", "happens", "how", "illustration", "image", "into", "its", "labeled", "learn",
+  "made", "showing", "simple", "stay", "that", "the", "this", "understand", "visual",
+  "what", "why", "with", "work", "works",
 ]);
 const INDIRECT_VISUAL_TERMS = ["building", "decorative", "ornament", "logo", "icon", "pattern", "road sign", "stop sign"];
 
@@ -41,6 +43,13 @@ function boundedFileName(value) {
   return `${name.slice(0, INPUT_LIMITS.imageFileName - extension.length).trim()}${extension}`;
 }
 
+function canonicalWord(word) {
+  if (word.length > 4 && word.endsWith("s") && !/(?:ss|us|is|ies)$/.test(word)) {
+    return word.slice(0, -1);
+  }
+  return word;
+}
+
 function words(value) {
   return new Set(
     cleanText(value)
@@ -48,6 +57,7 @@ function words(value) {
       .replace(/[^\p{L}\p{N}]+/gu, " ")
       .split(/\s+/)
       .filter((word) => word.length > 2 && !SEARCH_STOP_WORDS.has(word))
+      .map(canonicalWord)
   );
 }
 
@@ -67,6 +77,7 @@ export function buildVisualRequest({ topic = "", audience = "", slide = {} } = {
   return {
     query,
     context: [normalizedTopic, title, body].filter(Boolean).join(" "),
+    subjectTerms: [...words(normalizedTopic)],
     audience: cleanText(audience),
     visualKind: /diagram|label|divide|divided|triangle|graph|chart|map|cross.?section|anatom/i.test(teachingText)
       ? "diagram"
@@ -106,6 +117,11 @@ function hasRequiredRelevance(request, candidate) {
   const requested = cleanText(`${request.query} ${request.context}`).toLowerCase();
   const candidateText = cleanText(`${candidate.title} ${candidate.description}`).toLowerCase();
   if (INDIRECT_VISUAL_TERMS.some((term) => candidateText.includes(term) && !requested.includes(term))) {
+    return false;
+  }
+  const subjectWords = new Set(request.subjectTerms ?? []);
+  const candidateWords = words(`${candidate.title} ${candidate.description}`);
+  if (subjectWords.size > 0 && overlapScore(subjectWords, candidateWords) === 0) {
     return false;
   }
   const meaningfulQueryWords = words(request.query).size;

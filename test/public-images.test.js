@@ -52,6 +52,39 @@ test("common-sense subject relevance outranks an indirect raster photograph", ()
   assert.equal(ranked[0].title, "Regular octagon divided into eight triangles");
 });
 
+test("Wikimedia provider rejects generic matches that omit the lesson subject", async () => {
+  const provider = createWikimediaImageProvider({
+    lookupImpl: publicLookup,
+    fetchImpl: async () => Response.json({
+      query: {
+        pages: [{
+          title: "File:CPU Board Bottom Side and Power Board Top Side.jpg",
+          imageinfo: [{
+            mime: "image/jpeg",
+            thumburl: "https://upload.wikimedia.org/cpu-board.jpg",
+            descriptionurl: "https://commons.wikimedia.org/wiki/File:CPU_Board.jpg",
+            extmetadata: {
+              LicenseShortName: { value: "Public domain" },
+              ImageDescription: { value: "Three component types arranged on a strong support board" },
+            },
+          }],
+        }],
+      },
+    }),
+  });
+  const request = buildVisualRequest({
+    topic: "How do bridges stay up?",
+    audience: "general learner",
+    slide: {
+      title: "Shapes Make Bridges Strong",
+      body: "Different bridge shapes handle forces in clever ways.",
+      imagePrompt: "Three simple bridge types: beam, arch, and suspension bridge.",
+    },
+  });
+
+  assert.equal(await provider.find(request), null);
+});
+
 test("commercial-safe public licenses pass and restricted licenses fail", () => {
   for (const licenseName of ["Public domain", "CC0 1.0", "CC BY 4.0", "CC BY-SA 3.0"]) {
     assert.equal(isAllowedPublicLicense({ licenseName }), true, licenseName);

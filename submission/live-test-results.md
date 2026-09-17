@@ -102,3 +102,12 @@ These cases remain “Not run” until they are observed inside ChatGPT Develope
 - Voice cost: no narration request was made because image preparation did not complete.
 - API credit balance: `$2.51` before and `$2.51` after the test.
 - Follow-up: after at least one licensed visual has been verified, reuse that visual for remaining slides when Wikimedia rate-limits the lesson; preserve atomic failure when no verified visual exists.
+
+## Test 22 — failed
+
+- Question: `How do bridges stay up?`
+- Build: `e498742` (`Close image fallback race paths`).
+- Entry path: AskLilOwl plugin page → **Try in chat** → **Chat** mode; the user question did not contain a manual app tag.
+- Result: the full product flow completed in one widget with four slides, one synchronized narration track, automatic slide advancement, image credits, and a two-question quiz. However, all four selected Wikimedia images were unrelated to bridge engineering (a village-hall crowd, an ice-spectrometer schematic, a CPU board, and a religious painting). Render showed four normal completed searches and no rate-limit reuse event, proving the lexical relevance gate—not the fallback—accepted the bad candidates.
+- Voice cost: one narration request completed successfully. OpenAI's immediately visible prepaid balance remained `$2.51` before and after; usage reporting may be delayed.
+- Follow-up: require every candidate's official title or description to contain a meaningful lesson-subject term before generic slide-word overlap can qualify it.
