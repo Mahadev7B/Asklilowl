@@ -67,6 +67,21 @@ test('busy is process wide; worker failure cleans up and permits another job', a
   await createDiagramService().renderMany([flow]);
 });
 
+test('initial clock failure releases the global lock', async () => {
+  await assert.rejects(
+    createDiagramService({now: () => { throw new Error('clock failed'); }}).renderMany([flow]),
+    /clock failed/
+  );
+  const png=Buffer.alloc(33);
+  Buffer.from('89504e470d0a1a0a','hex').copy(png);
+  png.write('IHDR',12,'ascii');
+  png.writeUInt32BE(1200,16);
+  png.writeUInt32BE(675,20);
+  const worker=controlled(({id},w)=>queueMicrotask(()=>w.emit('message',{id,pngBase64:png.toString('base64')})));
+  const pngs=await createDiagramService({workerFactory:()=>worker}).renderMany([flow]);
+  assert.equal(pngs.length,1);
+});
+
 test('hard diagram timeout kills a nonresponding worker', async () => {
   const worker=controlled();
   await assert.rejects(createDiagramService({workerFactory:()=>worker}).renderMany([flow]),/diagram_timeout/);

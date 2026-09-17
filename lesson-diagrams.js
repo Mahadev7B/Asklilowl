@@ -13,8 +13,9 @@ export function createDiagramService({logger,workerFactory=defaultWorker,now=()=
     if(!Array.isArray(input)||input.length<1||input.length>20) throw new Error('diagram_invalid_input');
     let diagrams;
     try {diagrams=input.map(d=>diagramSchema.parse(d));} catch {throw new Error('diagram_invalid_input');}
+    const started=now();
     busy=true;
-    const started=now(); let worker,diagramTimer,lessonTimer,onMessage,onError,onExit;
+    let worker,diagramTimer,lessonTimer,onMessage,onError,onExit;
     const log=data=>{try {logger?.info?.(data);} catch { /* Logging cannot break cleanup. */ }};
     try {
       worker=workerFactory();
