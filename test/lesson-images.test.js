@@ -245,7 +245,10 @@ test("image fetch uses a dispatcher pinned to the validated public DNS result", 
   let fetchDispatcher;
   const service = createLessonImageService({
     publicOrigin: "https://lesson.example",
-    lookupImpl: async () => [{ address: "8.8.4.4", family: 4 }],
+    lookupImpl: async () => [
+      { address: "2001:4860:4860::8844", family: 6 },
+      { address: "8.8.4.4", family: 4 },
+    ],
     dispatcherFactory: (url, records) => {
       dispatcherInput = { hostname: url.hostname, records };
       return pinned;
@@ -263,7 +266,10 @@ test("image fetch uses a dispatcher pinned to the validated public DNS result", 
 
   assert.deepEqual(dispatcherInput, {
     hostname: "images.example",
-    records: [{ address: "8.8.4.4", family: 4 }],
+    records: [
+      { address: "8.8.4.4", family: 4 },
+      { address: "2001:4860:4860::8844", family: 6 },
+    ],
   });
   assert.equal(fetchDispatcher, pinned);
 });

@@ -233,6 +233,26 @@ test("Wikimedia provider rejects private DNS answers before fetching", async () 
   assert.equal(fetchCalls, 0);
 });
 
+test("Wikimedia provider prefers validated IPv4 when DNS returns IPv6 first", async () => {
+  let dispatcherRecords;
+  const provider = createWikimediaImageProvider({
+    lookupImpl: async () => [
+      { address: "2001:4860:4860::8888", family: 6 },
+      { address: "8.8.8.8", family: 4 },
+    ],
+    dispatcherFactory: (_url, records) => {
+      dispatcherRecords = records;
+      return { destroy: async () => {} };
+    },
+    fetchImpl: async () => Response.json({ query: { pages: [] } }),
+  });
+
+  await provider.find(buildVisualRequest(visualInput));
+
+  assert.equal(dispatcherRecords[0].family, 4);
+  assert.equal(dispatcherRecords[1].family, 6);
+});
+
 test("Wikimedia provider rejects oversized API responses", async () => {
   const provider = createWikimediaImageProvider({
     lookupImpl: publicLookup,
