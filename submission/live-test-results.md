@@ -53,3 +53,22 @@ These cases remain “Not run” until they are observed inside ChatGPT Develope
 - Voice cost: no narration request was made because image preparation did not complete.
 - API credit balance: `$2.51` before and `$2.51` after the test.
 - Follow-up: serialize public-image discovery to one search stream while retaining bounded 429 retry/backoff before Test 17.
+
+## Test 17 — failed
+
+- Question: `How do bridges stay up?`
+- Build: `0b7571f` (`Serialize public image discovery`).
+- Result: ChatGPT answered directly in the existing failure-heavy conversation and did not invoke AskLilOwl; Render received no lesson request.
+- Voice cost: no narration request was made.
+- API credit balance: `$2.51` before and `$2.51` after the test.
+- Follow-up: start the next test from AskLilOwl's own **Try in chat** entry point with Chat mode selected and submit only the ordinary question.
+
+## Test 18 — failed
+
+- Question: `How do bridges stay up?`
+- Build: `0b7571f` (`Serialize public image discovery`).
+- Entry path: AskLilOwl plugin page → **Try in chat** → **Chat** mode; the user question did not contain a manual app tag.
+- Result: AskLilOwl was invoked and serialized search eliminated HTTP 429 errors. Three slide searches selected licensed relevant images, but one slide exhausted its specific queries without a relevant candidate, so the complete lesson was withheld atomically.
+- Voice cost: no narration request was made because image preparation did not complete.
+- API credit balance: `$2.51` before and `$2.51` after the test.
+- Follow-up: retry a missing slide-specific visual with a broader lesson-topic request under the same license, relevance, raster, and security rules before Test 19.

@@ -73,6 +73,45 @@ test("image service finds one relevant public image per slide when none are supp
   assert.match(requests[2].query, /octagon divided into eight triangles/i);
 });
 
+test("image service replaces a missing slide-specific visual with a verified topic visual", async () => {
+  const requests = [];
+  const service = createLessonImageService({
+    publicOrigin: "https://lesson.example",
+    lookupImpl: publicLookup,
+    publicImageProvider: {
+      async find(request) {
+        requests.push(request);
+        if (request.query !== "Bridge engineering") return null;
+        return {
+          download_url: "https://upload.wikimedia.org/bridge.png",
+          mime_type: "image/png",
+          source_page_url: "https://commons.wikimedia.org/wiki/File:Bridge.png",
+          license_name: "CC0 1.0",
+          description: "Bridge engineering",
+        };
+      },
+    },
+    fetchImpl: async () => new Response(PNG_BYTES, {
+      headers: { "content-type": "image/png" },
+    }),
+  });
+
+  const [prepared] = await service.prepareForLesson({
+    topic: "Bridge engineering",
+    audience: "general learner",
+    slides: [{
+      title: "Loads move into the ground",
+      body: "Foundations transfer bridge loads into strong soil or rock.",
+      imagePrompt: "force arrows through bridge foundations into bedrock",
+    }],
+  });
+
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].query, "force arrows through bridge foundations into bedrock");
+  assert.equal(requests[1].query, "Bridge engineering");
+  assert.match(prepared.download_url, /^https:\/\/lesson\.example\/api\/images\//);
+});
+
 test("production image discovery does not trust self-declared supplied attribution", async () => {
   let providerCalls = 0;
   const service = createLessonImageService({
@@ -192,7 +231,7 @@ test("image discovery failure commits no staged lesson images", async () => {
     publicImageProvider: {
       async find() {
         finds += 1;
-        return finds === 2 ? null : {
+        return finds >= 2 ? null : {
           download_url: "https://upload.wikimedia.org/usable.png",
           mime_type: "image/png",
           source_page_url: "https://commons.wikimedia.org/wiki/File:Usable.png",

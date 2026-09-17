@@ -324,6 +324,18 @@ export function createLessonImageService({
             ? await publicImageProvider.verify(candidate, request)
             : null;
           if (!found) found = await publicImageProvider.find(request);
+          if (!found && String(topic).trim() && String(request.query).trim().toLowerCase() !== String(topic).trim().toLowerCase()) {
+            const topicRequest = buildVisualRequest({
+              topic,
+              audience,
+              slide: {
+                title: topic,
+                body: [slides[index].title, slides[index].body].filter(Boolean).join(" "),
+                imagePrompt: topic,
+              },
+            });
+            found = await publicImageProvider.find(topicRequest);
+          }
           if (!found || !isAllowedPublicLicense(found)) {
             throw new Error("A relevant public image was not available for every slide.");
           }
