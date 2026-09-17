@@ -108,7 +108,7 @@ test("production and demo MCP servers expose only their intended tools", async (
       result.tools.map((tool) => tool.name),
       expectedTools
     );
-    assert.ok(result.tools[0].outputSchema?.properties?.lesson);
+    assert.ok(result.tools.find((tool) => tool.name === "create_lesson").outputSchema?.properties?.lesson);
 
     await client.close();
     await stopServer(server);
