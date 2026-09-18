@@ -23,6 +23,9 @@ test("every new lesson preparation asks for a fresh style without calling asset 
   assert.equal(workflow.question, "How do bridges stay up?");
   assert.equal(workflow.ready, false);
   assert.equal(workflow.needsStyleSelection, true);
+  assert.equal(typeof workflow.masterPrompt, "string");
+  assert.ok(workflow.masterPrompt.length > 1000);
+  assert.equal(workflow.masterPrompt, client.getInstructions());
   assert.deepEqual(workflow.styleOptions.map(({ value }) => value), ["auto", "kid-friendly", "technical", "professional"]);
 
   await client.callTool({ name: "prepare_lesson", arguments: { question: "How do bridges stay up?", lessonStyle: "technical" } });
@@ -40,6 +43,7 @@ test("each selected lesson style guides all lesson content and explains the nati
     assert.equal(workflow.ready, false);
     assert.equal(workflow.needsStyleSelection, false);
     assert.equal(workflow.lessonStyle, lessonStyle);
+    assert.equal(workflow.masterPrompt, client.getInstructions());
     assert.equal(typeof workflow.styleGuidance, "string");
     assert.ok(workflow.styleGuidance.length > 20);
     assert.match(workflow.nextStep, /explanations.*imagePrompt.*diagram.*narration.*quiz/is);
