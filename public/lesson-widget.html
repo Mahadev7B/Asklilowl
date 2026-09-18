@@ -172,6 +172,7 @@
         <div id="topic" class="topic"></div>
         <h1 id="lesson-title"></h1>
         <div id="summary" class="summary"></div>
+        <p id="diagram-work-hint" class="summary" hidden>Want richer illustrations? Try Work mode, where native image generation may be available. You can continue here with clear educational diagrams.</p>
         <div id="objectives" class="objectives" hidden></div>
       </div>
 
@@ -248,6 +249,7 @@
     const objectivesEl = $("#objectives");
     const demoNoticeEl = $("#demo-notice");
     const diagramNoticeEl = $("#diagram-notice");
+    const diagramWorkHintEl = $("#diagram-work-hint");
     const depthEl = $("#depth");
     const visualEl = $("#visual");
     const counterEl = $("#counter");
@@ -428,6 +430,7 @@
       demoNoticeEl.hidden = !lesson.isDemo;
       diagramNoticeEl.textContent = lesson.visualMode === "diagram" ? "Illustrative diagrams" : "";
       diagramNoticeEl.hidden = lesson.visualMode !== "diagram";
+      diagramWorkHintEl.hidden = lesson.visualMode !== "diagram";
       objectivesEl.replaceChildren();
       if (lesson.objectives?.length) {
         const heading = document.createElement("strong");
@@ -688,6 +691,7 @@
       sourcesEl.hidden = true;
       imageCreditsEl.hidden = true;
       diagramNoticeEl.hidden = true;
+      diagramWorkHintEl.hidden = true;
       disclosureEl.hidden = true;
       emptyEl.hidden = false;
       emptyEl.classList.add("error");

@@ -171,6 +171,23 @@ test("widget labels diagram lessons without inserting SVG and still fails the wh
   assert.equal(document.querySelector("#empty").hidden, false);
 });
 
+test("widget offers Work mode only for diagram lessons without blocking navigation", async (t) => {
+  const { dom } = await loadWidget();
+  t.after(() => dom.window.close());
+  const document = dom.window.document;
+  await deliver(dom, lessonResult({ visualMode: "diagram" }));
+  const hint = document.querySelector("#diagram-work-hint");
+  assert.ok(hint, "diagram lesson exposes a Work mode suggestion");
+  assert.equal(hint.hidden, false);
+  assert.match(hint.textContent, /Work mode.*may be available/);
+  document.querySelector("#next").click();
+  assert.equal(document.querySelector("#counter").textContent, "Slide 2 of 3");
+  await deliver(dom, lessonResult());
+  assert.equal(hint.hidden, true);
+  await deliver(dom, lessonResult({ visualMode: "native" }));
+  assert.equal(hint.hidden, true);
+});
+
 test("widget hides the entire lesson when a required slide image is absent", async (t) => {
   const { dom } = await loadWidget();
   t.after(() => dom.window.close());
