@@ -1,0 +1,22 @@
+export {
+  easeIn,
+  easeInBack,
+  easeInBounce,
+  easeInCubic,
+  easeInElastic,
+  easeInOut,
+  easeInOutBack,
+  easeInOutCubic,
+  easeInOutQuad,
+  easeInQuad,
+  easeOut,
+  easeOutBack,
+  easeOutBounce,
+  easeOutCubic,
+  easeOutElastic,
+  easeOutQuad,
+  getEasingFunction,
+  linear,
+  step,
+} from '@excalimate/animation-core';
+export type { EasingFunction } from '@excalimate/animation-core';

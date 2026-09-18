@@ -1,0 +1,162 @@
+# Changelog
+
+All notable changes to the Excalimate web app will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- N/A
+
+### Changed
+
+- N/A
+
+### Fixed
+
+- N/A
+
+### Security
+
+- N/A
+
+## [0.5.1] - 2026-09-13
+
+### Added
+
+- Imported audio attachments with project persistence, synchronized playback, editor controls, and AAC MP4 / Opus WebM export muxing.
+- Scrollable, playhead-aware timeline navigation with anchored zoom and After Effects-style frame, zoom, and keyframe shortcuts.
+
+### Changed
+
+- Timeline edits now snap to project frames and support precise time entry, explicit multi-keyframe selection, grouped dragging, and single-action undo.
+- Timeline object names select their canvas objects while disclosure controls independently expand animated properties.
+- Updated the Mantine, Cloudflare, Astro, Vitest, and supporting dependency stacks.
+
+### Fixed
+
+- Prevented project hydration from creating phantom 10% scale keyframes.
+- Preserved interpolated transforms when starting canvas drag, resize, or rotation gestures.
+- Ensured canvas-focused timeline shortcuts run before Excalidraw tool shortcuts.
+
+### Security
+
+- Removed vulnerable dotLottie Sharp and Valibot dependency chains and updated brace-expansion and tar to patched releases.
+
+## [0.5.0] - 2026-07-13
+
+### Added
+
+- Excalimate V2's progressive creator workflow: Magic Canvas for guided animation, Sequence for plain-language ordering and timing, and the preserved Advanced Studio timeline for precise keyframe control.
+- Deterministic, fully local Auto Animate with selection or diagram scope, confidence-aware previews, and fade, slide, draw, and pop presets.
+- A curated animated template gallery and Smart Transitions with scene-state capture, local matching, preview, acceptance, customization, and Studio escalation.
+- A compact hosted player and embeddable PlayerPackage, plus V2 encrypted sharing with client-held keys, expiration, legacy-share reads, and revocation.
+- Shared project schema, animation core, player runtime, and export runtime packages for consistent behavior across the editor, player, exports, templates, and MCP.
+- MCP V2 structured action tools for local animation generation, presets, action sequences, camera moves, and project validation with paired live previews.
+
+### Changed
+
+- Video, GIF, animated SVG, Lottie, dotLottie, and hosted-player packaging now use unified frame sampling, capability checks, bounded resources, dedicated workers, and compact lazy-loaded runtime paths.
+- New and empty projects open in Magic, animated legacy projects open safely in Studio, and V2 project loading uses one validated migration path with last-known-good recovery for interrupted local writes.
+- Creator controls, dialogs, player controls, and transition workflows now provide improved keyboard access, reduced-motion behavior, focus handling, announcements, touch targets, responsive reflow, and narrow-screen layouts.
+- Performance-sensitive animation, scene-diff, player, export, template, and MCP paths now have deterministic benchmarks and bundle/resource guards.
+- Optional analytics now use explicit consent, in-memory identifiers, a declared content-free event catalogue, privacy-safe property filtering, and feature-independent rollback controls.
+- MCP live mode now defaults to secure localhost operation with isolated sessions, revisioned snapshots/deltas, pairing URLs, bounded resources, and explicit authentication for remote bindings.
+
+### Fixed
+
+- Auto Animate preserves and correctly renders bound arrows and their related elements.
+- Animation-order guidance uses plain language instead of ambiguous internal terminology.
+- Capture-state and Create-transition controls remain visible on responsive layouts and explain missing prerequisites before transition creation.
+- Project, template, share, player, export, and MCP paths maintain schema, animation, camera, file, and managed-action parity across surfaces.
+- Smart Transition and Sequence customization no longer silently overwrite detached, customized, or unmanaged animation work.
+- MCP live setup now requires the printed session pairing URL instead of attempting an unpaired server connection.
+
+### Security
+
+- Hardened encrypted-share validation, quotas, expiry, revocation, origin checks, content handling, and storage lifecycle without exposing encryption keys to the service.
+- Hardened the hosted player and export pipeline with strict package validation, sanitization, resource limits, content-security controls, and safer cross-window messaging.
+- Hardened MCP HTTP transport with loopback defaults, Host/Origin/Fetch Metadata checks, required remote authentication, session pairing, timeouts, rate limits, bounded payloads, sanitized errors, and cleanup.
+
+## [0.4.0] - 2026-03-22
+
+### Added
+
+- Lottie JSON (`.json`) and dotLottie (`.lottie`) export formats
+  - SVG-based shape rendering captures exact Excalidraw visual style (roughjs hand-drawn strokes, arrowheads, fills)
+  - Full keyframe animation support (opacity, translate, scale, rotation, draw progress)
+  - Camera pan/zoom animation via null parent layer with inverted transforms
+  - Group hierarchy preserved via Lottie layer parenting
+  - Proper camera frame → composition coordinate mapping with output resolution scaling
+- Image export scope selection (`Whole canvas` or `Selected elements`)
+  - Group selections expand to member elements and preserve bound text labels in selected-only exports
+- Image export background mode (`Include canvas background` or `No background`) for PNG/SVG
+  - JPG exports automatically include background because JPG does not support transparency
+- Lottie text rendering mode selection in the export dialog (`Inline fonts`, `Glyph shapes`, or both)
+  - Inline mode keeps native Lottie text layers with font metadata
+  - Glyph mode converts text to vector shapes for maximum cross-player compatibility
+- Consent-based analytics with PostHog
+  - Cookie consent banner with compact view and detailed preferences modal
+  - Three consent categories: Necessary (always on), Preferences (toggleable), Analytics (toggleable)
+  - PostHog only captures events when analytics consent is granted (`opt_out_capturing_by_default`)
+  - Consent state persisted in localStorage with versioning for migrations
+  - Cookie Settings accessible from File menu to manage preferences at any time
+  - Privacy Policy page on the landing page at `/privacy`
+  - Utility functions `canStorePreferences()`, `storePreference()`, `readPreference()` for consent-aware preference storage
+- Comprehensive event tracking across the app
+  - File operations: project created/saved/loaded, Excalidraw import
+  - Export: format tracked on each export
+  - Animation: keyframe add/move/delete, track toggle/remove, sequence create/update/delete
+  - Playback: play/pause/stop actions
+  - Mode switching, camera changes, theme toggles, panel toggles
+  - MCP connect/disconnect, project sharing, element grouping
+  - All tracking consent-gated and PII-free
+
+### Changed
+
+- Optimized glyph export fallback path to reuse a single SVG render per text element before PNG raster fallback
+- Updated app-facing URLs in docs/share defaults to `https://app.excalimate.com` while keeping landing and share service domains unchanged
+
+### Fixed
+
+- Lottie glyph text mode no longer exports invisible text when path glyph extraction is unavailable
+  - Falls back to embedded PNG image layers for text to preserve visibility across players
+- Lottie glyph path exports now inject fill paint when SVG glyph paths do not carry inline fill/stroke attributes
+- Lottie exports now preserve scale-origin behavior by compensating scale keyframes for Lottie center-anchored layer transforms
+
+## [0.3.0] - 2026-03-22
+
+### Added
+
+- New Project modal with name and aspect ratio selection
+- Onboarding overlay with hand-drawn Excalidraw-style arrows and hints
+- MCP Setup Guide page accessible from the welcome overlay
+- Image export (PNG, JPG, SVG) with source selection and 1x–4x scale
+- Dark/light theme toggle for exports
+- GitHub stars link and credits popover in the toolbar
+- ESC clears keyframe selection via capture-phase handler
+- Property panel shows keyframe editors when keyframes are selected without an element
+
+### Changed
+
+- Default theme is now light mode (persists user preference)
+- Export modal redesigned with Video/Image tabs and shared theme control
+- Animate mode shows correct animation state on initial load (no scrub needed)
+- Live MCP preview stays in edit mode until keyframes are added
+- SSE delta messages merged incrementally (scene + timeline)
+- `extractTargets()` skipped when only element properties change (not IDs)
+
+### Fixed
+
+- Undo restoring deleted elements no longer creates false keyframes
+- Group deletion now properly restores animation tracks on undo
+- `toggleMode()` now triggers `computeFrameAtTime` when entering animate mode
+- Elements no longer disappear during MCP live preview in edit mode
+- Removed opacity clamping in animation preview
+
+## [0.2.0] - 2026-03-16
+
+- Initial public release

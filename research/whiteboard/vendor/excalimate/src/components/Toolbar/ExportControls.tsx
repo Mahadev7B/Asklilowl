@@ -1,0 +1,824 @@
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Group,
+  Modal,
+  Progress,
+  SegmentedControl,
+  SimpleGrid,
+  Stack,
+  Tabs,
+  Text,
+  UnstyledButton,
+} from '@mantine/core';
+import { nprogress } from '@mantine/nprogress';
+import { notifications } from '@mantine/notifications';
+import {
+  IconMovie, IconVideo, IconPhoto, IconSvg, IconDownload, IconCheck, IconX,
+  IconAlertTriangle, IconCamera, IconFileCode, IconPackage, IconPlayerStop,
+  IconMusic,
+} from '@tabler/icons-react';
+import {
+  createExportJob,
+  estimateExport,
+} from '../../services/ExportService';
+import type {
+  ExportFormat,
+  ExportJob,
+  ExportPreflightResult,
+  ExportProgress,
+  ExportQuality,
+  LottieFontEmbeddingMode,
+} from '../../services/ExportService';
+import type { NonDeletedExcalidrawElement } from '@excalidraw/excalidraw/element/types';
+import { useAnimationStore } from '../../stores/animationStore';
+import type { AnimatableTarget } from '../../types/excalidraw';
+import { CAMERA_FRAME_TARGET_ID, useProjectStore } from '../../stores/projectStore';
+import { useUIStore } from '../../stores/uiStore';
+import { trackExport } from '../../services/analytics/posthog';
+
+// ── Video export ─────────────────────────────────────────────────
+
+const FORMAT_INFO: Record<ExportFormat, { label: string; desc: string; icon: ReactNode }> = {
+  mp4: { label: 'MP4', desc: 'H.264 — best quality, universal playback', icon: <IconMovie size={16} /> },
+  webm: { label: 'WebM', desc: 'VP9 — smaller files, web-optimized', icon: <IconVideo size={16} /> },
+  gif: { label: 'GIF', desc: 'Animated image, works everywhere', icon: <IconPhoto size={16} /> },
+  svg: { label: 'SVG', desc: 'Animated vector, infinite resolution', icon: <IconSvg size={16} /> },
+  lottie: { label: 'Lottie', desc: 'JSON animation — web, iOS, Android', icon: <IconFileCode size={16} /> },
+  dotlottie: { label: 'dotLottie', desc: 'Optimized Lottie container (.lottie)', icon: <IconPackage size={16} /> },
+};
+
+const QUALITY_INFO: Record<ExportQuality, { label: string; desc: string }> = {
+  low:         { label: 'Low',       desc: '2 Mbps / 480px' },
+  medium:      { label: 'Medium',    desc: '8 Mbps / 640px' },
+  high:        { label: 'High',      desc: '20 Mbps / 800px' },
+  'very-high': { label: 'Very High', desc: '40 Mbps / 1280px' },
+};
+
+// ── Image export ─────────────────────────────────────────────────
+
+type ImageFormat = 'png' | 'jpg' | 'svg';
+type ImageSource = 'raw' | 'animated' | 'camera';
+type ImageScope = 'canvas' | 'selected';
+type ImageBackground = 'include' | 'transparent';
+type ImageScale = 1 | 2 | 3 | 4;
+
+const IMAGE_FORMATS: { value: ImageFormat; label: string }[] = [
+  { value: 'png', label: 'PNG' },
+  { value: 'jpg', label: 'JPG' },
+  { value: 'svg', label: 'SVG' },
+];
+
+const IMAGE_SCALES: { value: string; label: string }[] = [
+  { value: '1', label: '1x' },
+  { value: '2', label: '2x' },
+  { value: '3', label: '3x' },
+  { value: '4', label: '4x' },
+];
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+  if (bytes < 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+  }
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GiB`;
+}
+
+type ExportableElement = NonDeletedExcalidrawElement;
+
+function resolveSelectedExportElements(
+  elements: readonly ExportableElement[],
+  selectedTargetIds: readonly string[],
+  targets: readonly AnimatableTarget[],
+): ExportableElement[] {
+  if (selectedTargetIds.length === 0) return [];
+
+  const targetById = new Map<string, AnimatableTarget>();
+  for (const t of targets) targetById.set(t.id, t);
+
+  const selectedElementIdSet = new Set<string>();
+  for (const id of selectedTargetIds) {
+    if (id === CAMERA_FRAME_TARGET_ID) continue;
+    const target = targetById.get(id);
+    if (target?.type === 'group') {
+      for (const eid of target.elementIds) selectedElementIdSet.add(eid);
+    } else {
+      selectedElementIdSet.add(id);
+    }
+  }
+
+  if (selectedElementIdSet.size === 0) return [];
+
+  // Include bound labels so exporting a labeled shape keeps its text.
+  const elementById = new Map(elements.map((el) => [el.id, el]));
+  for (const selectedId of Array.from(selectedElementIdSet)) {
+    const selectedEl = elementById.get(selectedId) as
+      | (ExportableElement & { boundElements?: readonly { id: string; type: string }[] })
+      | undefined;
+    for (const bound of selectedEl?.boundElements ?? []) {
+      if (bound.type === 'text') selectedElementIdSet.add(bound.id);
+    }
+  }
+  for (const el of elements) {
+    const containerId = (el as { containerId?: string | null }).containerId;
+    if (containerId && selectedElementIdSet.has(containerId)) {
+      selectedElementIdSet.add(el.id);
+    }
+  }
+
+  // Keep original z-order.
+  return elements.filter((el) => selectedElementIdSet.has(el.id));
+}
+
+// ── General settings ─────────────────────────────────────────────
+
+type ExportTheme = 'light' | 'dark';
+
+async function exportImage(
+  source: ImageSource,
+  imageFormat: ImageFormat,
+  scale: ImageScale,
+  exportTheme: ExportTheme,
+  scope: ImageScope,
+  background: ImageBackground,
+): Promise<void> {
+  const { getNonDeletedElements, exportToSvg } = await import('@excalidraw/excalidraw');
+  const { applyAnimationToElements } = await import('../../core/engine/renderUtils');
+  const { getCameraRect } = await import('../../services/export/cameraMath');
+
+  const project = useProjectStore.getState().project;
+  if (!project?.scene) throw new Error('No scene to export');
+
+  const rawElements = getNonDeletedElements(project.scene.elements) as ExportableElement[];
+  const targets = useProjectStore.getState().targets;
+  const selectedTargetIds = useUIStore.getState().selectedElementIds;
+  const frameState = (await import('../../stores/playbackStore')).usePlaybackStore.getState().frameState;
+  const files = project.scene.files ?? {};
+
+  // Choose elements based on source
+  const effectiveScope: ImageScope = source === 'camera' ? 'canvas' : scope;
+  let elements = [...rawElements];
+
+  if (effectiveScope === 'selected') {
+    const selectedElements = resolveSelectedExportElements(rawElements, selectedTargetIds, targets);
+    if (selectedElements.length === 0) {
+      throw new Error('Select one or more elements before exporting selected elements.');
+    }
+    elements = selectedElements;
+  }
+
+  if (source === 'animated' || source === 'camera') {
+    elements = applyAnimationToElements(elements, frameState, targets) as ExportableElement[];
+  }
+
+  const isDark = exportTheme === 'dark';
+  const effectiveBackground: ImageBackground = imageFormat === 'jpg' ? 'include' : background;
+  const includeBackground = effectiveBackground === 'include';
+
+  // exportWithDarkMode applies a CSS invert filter to the ENTIRE SVG (including
+  // background). So we pass the LIGHT-mode colors and let the filter invert them:
+  // white background → dark, black strokes → white, etc.
+  const svg = await exportToSvg({
+    elements,
+    files,
+    appState: {
+      exportBackground: includeBackground,
+      exportWithDarkMode: isDark,
+      viewBackgroundColor: '#ffffff',
+    },
+    exportPadding: 20,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
+
+  // Crop to camera frame if needed
+  if (source === 'camera') {
+    const cfg = useProjectStore.getState().cameraFrame;
+    const cameraRect = getCameraRect(cfg, frameState);
+    const vb = svg.viewBox?.baseVal;
+
+    // Compute scene bounds to map camera coords to SVG coords
+    let sMinX = Infinity, sMinY = Infinity, sMaxX = -Infinity, sMaxY = -Infinity;
+    for (const el of elements) {
+      const x1 = Math.min(el.x, el.x + el.width);
+      const y1 = Math.min(el.y, el.y + el.height);
+      const x2 = Math.max(el.x, el.x + el.width);
+      const y2 = Math.max(el.y, el.y + el.height);
+      if (x1 < sMinX) sMinX = x1;
+      if (y1 < sMinY) sMinY = y1;
+      if (x2 > sMaxX) sMaxX = x2;
+      if (y2 > sMaxY) sMaxY = y2;
+    }
+
+    const sceneW = (sMaxX - sMinX) || 1;
+    const sceneH = (sMaxY - sMinY) || 1;
+    const svgScaleX = (vb?.width ?? sceneW) / sceneW;
+    const svgScaleY = (vb?.height ?? sceneH) / sceneH;
+
+    const camSvgX = (cameraRect.x - cameraRect.width / 2 - sMinX) * svgScaleX + (vb?.x ?? 0);
+    const camSvgY = (cameraRect.y - cameraRect.height / 2 - sMinY) * svgScaleY + (vb?.y ?? 0);
+    const camSvgW = cameraRect.width * svgScaleX;
+    const camSvgH = cameraRect.height * svgScaleY;
+
+    svg.setAttribute('viewBox', `${camSvgX} ${camSvgY} ${camSvgW} ${camSvgH}`);
+  }
+
+  if (imageFormat === 'svg') {
+    // Direct SVG download
+    const svgStr = new XMLSerializer().serializeToString(svg);
+    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+    downloadBlob(blob, `excalimate-export.svg`);
+    return;
+  }
+
+  // Rasterize SVG to canvas
+  const vb = svg.viewBox?.baseVal;
+  const baseW = vb?.width ?? 800;
+  const baseH = vb?.height ?? 600;
+  const outW = Math.round(baseW * scale);
+  const outH = Math.round(baseH * scale);
+
+  svg.setAttribute('width', String(outW));
+  svg.setAttribute('height', String(outH));
+
+  const svgStr = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d')!;
+
+  const img = new Image(outW, outH);
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => {
+      if (includeBackground) {
+        ctx.fillStyle = isDark ? '#121212' : '#ffffff';
+        ctx.fillRect(0, 0, outW, outH);
+      } else {
+        ctx.clearRect(0, 0, outW, outH);
+      }
+      ctx.drawImage(img, 0, 0, outW, outH);
+      URL.revokeObjectURL(url);
+      resolve();
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Failed to rasterize SVG'));
+    };
+    img.src = url;
+  });
+
+  const mimeType = imageFormat === 'jpg' ? 'image/jpeg' : 'image/png';
+  const quality = imageFormat === 'jpg' ? 0.92 : undefined;
+  canvas.toBlob(
+    (b) => {
+      if (b) downloadBlob(b, `excalimate-export.${imageFormat}`);
+    },
+    mimeType,
+    quality,
+  );
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Component ────────────────────────────────────────────────────
+
+export function ExportControls() {
+  const mode = useUIStore((s) => s.mode);
+  const selectedElementIds = useUIStore((s) => s.selectedElementIds);
+  const [showDialog, setShowDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+
+  // Video state
+  const [format, setFormat] = useState<ExportFormat>('mp4');
+  const [quality, setQuality] = useState<ExportQuality>('high');
+  const [lottieFontEmbeddingModes, setLottieFontEmbeddingModes] = useState<LottieFontEmbeddingMode[]>(['inline']);
+  const [svgProfile, setSvgProfile] = useState<'css-keyframes' | 'smil'>('css-keyframes');
+  const [exporting, setExporting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [jobProgress, setJobProgress] = useState<ExportProgress | null>(null);
+  const [preflight, setPreflight] = useState<ExportPreflightResult | null>(null);
+  const [estimating, setEstimating] = useState(false);
+  const activeJobRef = useRef<ExportJob<void> | null>(null);
+  const cancelRequestedRef = useRef(false);
+
+  // Image state
+  const [imageFormat, setImageFormat] = useState<ImageFormat>('png');
+  const [imageSource, setImageSource] = useState<ImageSource>('raw');
+  const [imageScope, setImageScope] = useState<ImageScope>('canvas');
+  const [imageBackground, setImageBackground] = useState<ImageBackground>('include');
+  const [imageScale, setImageScale] = useState<ImageScale>(2);
+
+  // General
+  const [exportTheme, setExportTheme] = useState<ExportTheme>('light');
+
+  const clipStart = useAnimationStore((s) => s.clipStart);
+  const clipEnd = useAnimationStore((s) => s.clipEnd);
+  const audioAttachment = useProjectStore((s) => s.project?.audio);
+  const clipDuration = ((clipEnd - clipStart) / 1000).toFixed(1);
+
+  const handleOpen = () => {
+    setActiveTab(mode === 'animate' ? 'video' : 'image');
+    setShowDialog(true);
+  };
+
+  const handleVideoExport = async () => {
+    const isLottieFormat = format === 'lottie' || format === 'dotlottie';
+    trackExport(format);
+    try {
+      setExporting(true);
+      setProgress(0);
+      setJobProgress(null);
+      cancelRequestedRef.current = false;
+      nprogress.start();
+      const job = await createExportJob({
+        format,
+        quality,
+        theme: exportTheme,
+        svgProfile,
+        lottieFontEmbeddingModes: isLottieFormat ? lottieFontEmbeddingModes : undefined,
+        onProgress: (p) => {
+          setProgress(p);
+          nprogress.set(p * 100);
+        },
+        onJobProgress: setJobProgress,
+      });
+      activeJobRef.current = job;
+      if (cancelRequestedRef.current) job.cancel();
+      await job.start();
+      nprogress.complete();
+      notifications.show({
+        title: 'Export complete',
+        message: `${FORMAT_INFO[format].label} file has been exported successfully.`,
+        icon: <IconCheck size={16} />,
+        color: 'green',
+      });
+    } catch (error) {
+      nprogress.complete();
+      if (
+        activeJobRef.current?.state.status === 'cancelled' ||
+        (error instanceof Error && error.name === 'ExportCancelledError')
+      ) {
+        notifications.show({
+          title: 'Export cancelled',
+          message: 'Export resources were released.',
+          icon: <IconPlayerStop size={16} />,
+          color: 'gray',
+        });
+        return;
+      }
+      const message = error instanceof Error ? error.message : 'Export failed';
+      notifications.show({ title: 'Export failed', message, icon: <IconX size={16} />, color: 'red' });
+    } finally {
+      setExporting(false);
+      setProgress(0);
+      setJobProgress(null);
+      activeJobRef.current = null;
+      cancelRequestedRef.current = false;
+    }
+  };
+
+  const handleCancelExport = () => {
+    cancelRequestedRef.current = true;
+    activeJobRef.current?.cancel();
+  };
+
+  const handleImageExport = async () => {
+    const effectiveScope: ImageScope = imageSource === 'camera' ? 'canvas' : imageScope;
+    const effectiveBackground: ImageBackground = imageFormat === 'jpg' ? 'include' : imageBackground;
+    try {
+      setExporting(true);
+      nprogress.start();
+      await exportImage(imageSource, imageFormat, imageScale, exportTheme, effectiveScope, effectiveBackground);
+      nprogress.complete();
+      const scopeLabel = effectiveScope === 'selected' ? 'selected elements' : 'whole canvas';
+      const backgroundLabel = effectiveBackground === 'transparent' ? 'transparent background' : 'with background';
+      notifications.show({
+        title: 'Image exported',
+        message: `${imageFormat.toUpperCase()} image (${scopeLabel}, ${backgroundLabel}) at ${imageScale}x scale.`,
+        icon: <IconCheck size={16} />,
+        color: 'green',
+      });
+    } catch (error) {
+      nprogress.complete();
+      const message = error instanceof Error ? error.message : 'Export failed';
+      notifications.show({ title: 'Export failed', message, icon: <IconX size={16} />, color: 'red' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const isAnimateMode = mode === 'animate';
+  const isLottieFormat = format === 'lottie' || format === 'dotlottie';
+  const hasLottieFontEmbeddingMode = lottieFontEmbeddingModes.length > 0;
+  const canExportSelected = selectedElementIds.length > 0 && imageSource !== 'camera';
+  const canExportTransparent = imageFormat !== 'jpg';
+  const preflightErrors = preflight?.issues.filter((issue) => issue.severity === 'error') ?? [];
+  const preflightWarnings = preflight?.issues.filter((issue) => issue.severity === 'warning') ?? [];
+
+  useEffect(() => {
+    if (!canExportSelected && imageScope === 'selected') {
+      setImageScope('canvas');
+    }
+  }, [canExportSelected, imageScope]);
+
+  useEffect(() => {
+    if (!canExportTransparent && imageBackground === 'transparent') {
+      setImageBackground('include');
+    }
+  }, [canExportTransparent, imageBackground]);
+
+  useEffect(() => {
+    if (!showDialog || activeTab !== 'video' || exporting) return;
+    let current = true;
+    setEstimating(true);
+    void estimateExport({
+      format,
+      quality,
+      theme: exportTheme,
+      svgProfile,
+      lottieFontEmbeddingModes: isLottieFormat
+        ? lottieFontEmbeddingModes
+        : undefined,
+    })
+      .then((result) => {
+        if (current) setPreflight(result);
+      })
+      .catch(() => {
+        if (current) setPreflight(null);
+      })
+      .finally(() => {
+        if (current) setEstimating(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [
+    activeTab,
+    exportTheme,
+    exporting,
+    format,
+    isLottieFormat,
+    lottieFontEmbeddingModes,
+    quality,
+    showDialog,
+    svgProfile,
+    audioAttachment,
+  ]);
+
+  return (
+    <>
+      <Button variant="subtle" color="gray" size="compact-sm" leftSection={<IconDownload size={14} />} onClick={handleOpen}>
+        Export
+      </Button>
+
+      <Modal
+        opened={showDialog}
+        onClose={() => setShowDialog(false)}
+        title="Export"
+        size="md"
+      >
+        <Tabs value={activeTab} onChange={setActiveTab}>
+          <Tabs.List grow>
+            <Tabs.Tab value="video" leftSection={<IconMovie size={14} />}>Video</Tabs.Tab>
+            <Tabs.Tab value="image" leftSection={<IconPhoto size={14} />}>Image</Tabs.Tab>
+          </Tabs.List>
+
+          {/* ── Video Tab ─────────────────────────── */}
+          <Tabs.Panel value="video" pt="md">
+            <Stack gap="md">
+              <Text size="xs" c="dimmed">
+                Clip: {(clipStart / 1000).toFixed(1)}s – {(clipEnd / 1000).toFixed(1)}s ({clipDuration}s)
+              </Text>
+              {audioAttachment && (
+                <Group gap={6}>
+                  <IconMusic size={14} />
+                  <Text size="xs" c="dimmed">
+                    {audioAttachment.fileName} will be included in MP4 and WebM exports.
+                  </Text>
+                </Group>
+              )}
+
+              {exporting && activeTab === 'video' ? (
+                <Stack gap="xs">
+                  <Group gap="xs">
+                    {FORMAT_INFO[format].icon}
+                    <Text size="sm" fw={500}>Exporting {FORMAT_INFO[format].label}…</Text>
+                  </Group>
+                  <Progress value={progress * 100} animated size="lg" radius="sm" />
+                  <Text size="xs" c="dimmed" ta="center">{Math.round(progress * 100)}%</Text>
+                  {jobProgress && (
+                    <Text size="xs" c="dimmed" ta="center">
+                      {jobProgress.message ?? jobProgress.phase}
+                    </Text>
+                  )}
+                  <Alert variant="light" color="blue" radius="sm">
+                    <Text size="xs">You can close this dialog — the export will continue in the background.</Text>
+                  </Alert>
+                  <Button
+                    variant="light"
+                    color="red"
+                    leftSection={<IconPlayerStop size={16} />}
+                    onClick={handleCancelExport}
+                  >
+                    Cancel export
+                  </Button>
+                </Stack>
+              ) : (
+                <>
+                  <div>
+                    <Text size="xs" fw={500} mb={8}>Format</Text>
+                    <SimpleGrid cols={2} spacing={6}>
+                      {(Object.keys(FORMAT_INFO) as ExportFormat[]).map((f) => {
+                        const info = FORMAT_INFO[f];
+                        return (
+                          <UnstyledButton
+                            key={f}
+                            type="button"
+                            className={`px-3 py-2 rounded border text-left text-xs transition-colors cursor-pointer ${
+                              format === f
+                                ? 'border-accent bg-accent-muted text-accent'
+                                : 'border-border text-text-muted hover:border-accent/50'
+                            }`}
+                            onClick={() => setFormat(f)}
+                          >
+                            <div className="font-medium flex items-center gap-1">{info.icon} {info.label}</div>
+                            <div className="text-[10px] opacity-70 mt-0.5">{info.desc}</div>
+                          </UnstyledButton>
+                        );
+                      })}
+                    </SimpleGrid>
+                  </div>
+
+                  {format !== 'svg' && format !== 'lottie' && format !== 'dotlottie' && (
+                    <div>
+                      <Text size="xs" fw={500} mb={8}>Quality</Text>
+                      <SimpleGrid cols={4} spacing={4}>
+                        {(Object.keys(QUALITY_INFO) as ExportQuality[]).map((q) => {
+                          const info = QUALITY_INFO[q];
+                          return (
+                            <UnstyledButton
+                              key={q}
+                              type="button"
+                              className={`px-2 py-1.5 rounded border text-center text-[10px] transition-colors cursor-pointer ${
+                                quality === q
+                                  ? 'border-accent bg-accent-muted text-accent'
+                                  : 'border-border text-text-muted hover:border-accent/50'
+                              }`}
+                              onClick={() => setQuality(q)}
+                            >
+                              <div className="font-medium">{info.label}</div>
+                            </UnstyledButton>
+                          );
+                        })}
+                      </SimpleGrid>
+                      <Text size="xs" c="dimmed" mt={4}>{QUALITY_INFO[quality].desc}</Text>
+                    </div>
+                  )}
+
+                  {isLottieFormat && (
+                    <div>
+                      <Text size="xs" fw={500} mb={8}>Text rendering mode</Text>
+                      <Checkbox.Group
+                        value={lottieFontEmbeddingModes}
+                        onChange={(value) => setLottieFontEmbeddingModes(value as LottieFontEmbeddingMode[])}
+                      >
+                        <Stack gap={6}>
+                          <Checkbox
+                            value="inline"
+                            label="Inline fonts in JSON (smaller files, depends on player font support)"
+                            size="xs"
+                          />
+                          <Checkbox
+                            value="glyphs"
+                            label="Glyph shapes (larger files, highest compatibility; falls back to embedded vector text)"
+                            size="xs"
+                          />
+                        </Stack>
+                      </Checkbox.Group>
+                      <Text size="xs" c="dimmed" mt={4}>
+                        You can select both options. When glyphs are enabled, text is exported as vector shapes.
+                      </Text>
+                      {!hasLottieFontEmbeddingMode && (
+                        <Text size="xs" c="red" mt={4}>
+                          Select at least one text rendering mode to export Lottie.
+                        </Text>
+                      )}
+                    </div>
+                  )}
+
+                  {format === 'svg' && (
+                    <div>
+                      <Text size="xs" fw={500} mb={8}>Animation profile</Text>
+                      <SegmentedControl
+                        fullWidth
+                        size="xs"
+                        value={svgProfile}
+                        onChange={(value) =>
+                          setSvgProfile(value as 'css-keyframes' | 'smil')
+                        }
+                        data={[
+                          { value: 'css-keyframes', label: 'CSS keyframes' },
+                          { value: 'smil', label: 'SMIL' },
+                        ]}
+                      />
+                      <Text size="xs" c="dimmed" mt={4}>
+                        CSS targets modern browsers. SMIL is available for hosts that preserve SVG animation elements. Both include a static poster fallback.
+                      </Text>
+                    </div>
+                  )}
+
+                  {preflight && (
+                    <Stack gap={6}>
+                      <Text size="xs" fw={500}>Resource estimate</Text>
+                      <Text size="xs" c="dimmed">
+                        {preflight.estimate.width}×{preflight.estimate.height} ·{' '}
+                        {preflight.estimate.sampleCount.toLocaleString()} samples ·{' '}
+                        {formatBytes(preflight.estimate.estimatedPeakMemoryBytes)} peak memory ·{' '}
+                        ~{formatBytes(preflight.estimate.estimatedOutputBytes)} output
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        Execution: {preflight.capabilities.executionMode === 'worker-assisted'
+                          ? 'worker-assisted sampling with cooperative DOM rasterization'
+                          : 'cooperative main-thread fallback'}
+                      </Text>
+                      {preflightWarnings.map((issue) => (
+                        <Alert
+                          key={issue.code}
+                          variant="light"
+                          color="yellow"
+                          icon={<IconAlertTriangle size={14} />}
+                        >
+                          <Text size="xs">{issue.message}</Text>
+                        </Alert>
+                      ))}
+                      {preflightErrors.map((issue) => (
+                        <Alert
+                          key={issue.code}
+                          variant="light"
+                          color="red"
+                          icon={<IconX size={14} />}
+                        >
+                          <Text size="xs">{issue.message}</Text>
+                        </Alert>
+                      ))}
+                    </Stack>
+                  )}
+
+                  <Button
+                    fullWidth
+                    leftSection={<IconDownload size={16} />}
+                    onClick={handleVideoExport}
+                    loading={estimating}
+                    disabled={
+                      (isLottieFormat && !hasLottieFontEmbeddingMode) ||
+                      preflightErrors.length > 0
+                    }
+                  >
+                    Export {FORMAT_INFO[format].label}
+                  </Button>
+                </>
+              )}
+            </Stack>
+          </Tabs.Panel>
+
+          {/* ── Image Tab ─────────────────────────── */}
+          <Tabs.Panel value="image" pt="md">
+            <Stack gap="md">
+              {/* Source (animate mode only) */}
+              {isAnimateMode && (
+                <div>
+                  <Text size="xs" fw={500} mb={8}>Source</Text>
+                  <SimpleGrid cols={1} spacing={6}>
+                    {([
+                      { value: 'raw' as ImageSource, label: 'Complete drawing', desc: 'Original scene without animation', icon: <IconPhoto size={14} /> },
+                      { value: 'animated' as ImageSource, label: 'Current animation state', desc: 'Drawing with animation applied at current time', icon: <IconMovie size={14} /> },
+                      { value: 'camera' as ImageSource, label: 'Camera frame', desc: 'Cropped to camera frame at current time', icon: <IconCamera size={14} /> },
+                    ]).map((s) => (
+                      <UnstyledButton
+                        key={s.value}
+                        type="button"
+                        className={`px-3 py-2 rounded border text-left text-xs transition-colors cursor-pointer ${
+                          imageSource === s.value
+                            ? 'border-accent bg-accent-muted text-accent'
+                            : 'border-border text-text-muted hover:border-accent/50'
+                        }`}
+                        onClick={() => setImageSource(s.value)}
+                      >
+                        <div className="font-medium flex items-center gap-1">{s.icon} {s.label}</div>
+                        <div className="text-[10px] opacity-70 mt-0.5">{s.desc}</div>
+                      </UnstyledButton>
+                    ))}
+                  </SimpleGrid>
+                </div>
+              )}
+
+              {/* Scope */}
+              <div>
+                <Text size="xs" fw={500} mb={8}>Scope</Text>
+                <SegmentedControl
+                  fullWidth
+                  size="xs"
+                  value={imageScope}
+                  onChange={(v) => setImageScope(v as ImageScope)}
+                  data={[
+                    { value: 'canvas', label: 'Whole canvas' },
+                    { value: 'selected', label: 'Selected elements', disabled: !canExportSelected },
+                  ]}
+                />
+                {!canExportSelected && (
+                  <Text size="xs" c="dimmed" mt={4}>
+                    {imageSource === 'camera'
+                      ? 'Selected-elements export is unavailable for Camera frame source.'
+                      : 'Select one or more elements to export only the selection.'}
+                  </Text>
+                )}
+              </div>
+
+              {/* Format */}
+              <div>
+                <Text size="xs" fw={500} mb={8}>Format</Text>
+                <SegmentedControl
+                  fullWidth
+                  size="xs"
+                  value={imageFormat}
+                  onChange={(v) => setImageFormat(v as ImageFormat)}
+                  data={IMAGE_FORMATS}
+                />
+              </div>
+
+              {/* Background */}
+              <div>
+                <Text size="xs" fw={500} mb={8}>Background</Text>
+                <SegmentedControl
+                  fullWidth
+                  size="xs"
+                  value={imageBackground}
+                  onChange={(v) => setImageBackground(v as ImageBackground)}
+                  data={[
+                    { value: 'include', label: 'Include canvas background' },
+                    { value: 'transparent', label: 'No background', disabled: !canExportTransparent },
+                  ]}
+                />
+                {!canExportTransparent && (
+                  <Text size="xs" c="dimmed" mt={4}>
+                    JPG does not support transparency, so background is always included.
+                  </Text>
+                )}
+              </div>
+
+              {/* Scale (not for SVG) */}
+              {imageFormat !== 'svg' && (
+                <div>
+                  <Text size="xs" fw={500} mb={8}>Scale</Text>
+                  <SegmentedControl
+                    fullWidth
+                    size="xs"
+                    value={String(imageScale)}
+                    onChange={(v) => setImageScale(Number(v) as ImageScale)}
+                    data={IMAGE_SCALES}
+                  />
+                </div>
+              )}
+
+              <Button
+                fullWidth
+                leftSection={<IconDownload size={16} />}
+                onClick={handleImageExport}
+                loading={exporting}
+              >
+                Export {imageFormat.toUpperCase()}
+              </Button>
+            </Stack>
+          </Tabs.Panel>
+        </Tabs>
+
+        {/* ── Shared settings (visible for both tabs) ── */}
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--color-border)' }}>
+          <Group gap="sm" align="center">
+            <Text size="xs" fw={500}>Export Theme</Text>
+            <SegmentedControl
+              size="xs"
+              value={exportTheme}
+              onChange={(v) => setExportTheme(v as ExportTheme)}
+              data={[
+                { value: 'light', label: 'Light' },
+                { value: 'dark', label: 'Dark' },
+              ]}
+            />
+          </Group>
+        </div>
+      </Modal>
+    </>
+  );
+}

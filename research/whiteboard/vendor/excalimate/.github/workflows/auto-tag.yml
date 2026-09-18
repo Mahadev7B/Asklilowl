@@ -1,0 +1,76 @@
+name: Auto-tag & Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'mcp-server/package.json'
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detect Version Bumps
+    runs-on: ubuntu-latest
+    outputs:
+      app-bumped: ${{ steps.app.outputs.bumped }}
+      app-version: ${{ steps.app.outputs.current }}
+      mcp-bumped: ${{ steps.mcp.outputs.bumped }}
+      mcp-version: ${{ steps.mcp.outputs.current }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check web app version bump
+        id: app
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          PREVIOUS=$(git show HEAD~1:package.json 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version" 2>/dev/null || echo "")
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "previous=$PREVIOUS" >> $GITHUB_OUTPUT
+          if [ "$CURRENT" != "$PREVIOUS" ] && [ -n "$PREVIOUS" ]; then
+            echo "bumped=true" >> $GITHUB_OUTPUT
+            echo "🏷️ Web app: $PREVIOUS → $CURRENT"
+          else
+            echo "bumped=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check MCP server version bump
+        id: mcp
+        run: |
+          CURRENT=$(node -p "require('./mcp-server/package.json').version")
+          PREVIOUS=$(git show HEAD~1:mcp-server/package.json 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version" 2>/dev/null || echo "")
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "previous=$PREVIOUS" >> $GITHUB_OUTPUT
+          if [ "$CURRENT" != "$PREVIOUS" ] && [ -n "$PREVIOUS" ]; then
+            echo "bumped=true" >> $GITHUB_OUTPUT
+            echo "🏷️ MCP server: $PREVIOUS → $CURRENT"
+          else
+            echo "bumped=false" >> $GITHUB_OUTPUT
+          fi
+
+  release-app:
+    name: Release Web App
+    needs: detect
+    if: needs.detect.outputs.app-bumped == 'true'
+    uses: ./.github/workflows/release-app.yml
+    with:
+      version: ${{ needs.detect.outputs.app-version }}
+    permissions:
+      contents: write
+
+  release-mcp:
+    name: Release MCP Server
+    needs: detect
+    if: needs.detect.outputs.mcp-bumped == 'true'
+    uses: ./.github/workflows/publish-mcp.yml
+    with:
+      version: ${{ needs.detect.outputs.mcp-version }}
+    permissions:
+      contents: write
+      id-token: write
+    secrets: inherit

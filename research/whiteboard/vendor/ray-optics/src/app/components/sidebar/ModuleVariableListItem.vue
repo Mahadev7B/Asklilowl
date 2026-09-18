@@ -1,0 +1,507 @@
+<!--
+  Copyright 2026 The Ray Optics Simulation authors and contributors
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
+<template>
+  <div class="module-var-item" @focusout="onRowFocusOut">
+    <div class="module-var-name-wrap">
+      <textarea
+        ref="nameRef"
+        class="module-var-name"
+        :value="name"
+        rows="1"
+        spellcheck="false"
+        @keydown="onNameKeydown"
+        @keydown.enter.prevent="onEnterCommit"
+        @input="onNameInput"
+        @focus="onNameFocus"
+        @blur="onNameBlur"
+      ></textarea>
+    </div>
+    <span class="module-var-equals" aria-hidden="true">=</span>
+    <div class="module-var-tooltip-host" @mouseleave="onModuleInstancesMouseLeave">
+      <div class="module-var-expr-stack">
+        <textarea
+          ref="exprRef"
+          class="module-var-expr"
+          :value="expression"
+          rows="1"
+          spellcheck="false"
+          @keydown.stop
+          @keydown.enter.prevent="onEnterCommit"
+          @input="onExprInput"
+          @focus="onExprFocus"
+          @blur="onExprBlur"
+          @click="updateExprParenHighlight"
+          @keyup="updateExprParenHighlight"
+          @select="updateExprParenHighlight"
+        ></textarea>
+        <div
+          class="module-var-expr-highlight-layer"
+          aria-hidden="true"
+          v-html="exprParenHighlightHtml"
+        ></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import { ref, watch, nextTick, onMounted, onBeforeUnmount, toRef, computed } from 'vue'
+import * as bootstrap from 'bootstrap'
+import { usePreferencesStore } from '../../store/preferences'
+import { useSceneStore } from '../../store/scene'
+import { app } from '../../services/app'
+import {
+  buildModuleInstanceTooltipHtml,
+  isLiteralBooleanFieldValue,
+  isLiteralNumericFieldValue,
+  tooltipTupleAllCellsMissing
+} from '../../utils/moduleInstanceTooltipHtml.js'
+import {
+  applyTextareaAutoResize,
+  observeTextareasResizeWhenVisible
+} from '../../utils/textareaAutoResize.js'
+import { useParenHighlightLayer } from '../../composables/useParenHighlightLayer.js'
+
+export default {
+  name: 'ModuleVariableListItem',
+  props: {
+    moduleName: { type: String, default: '' },
+    name: { type: String, default: '' },
+    expression: { type: String, default: '' },
+    focusName: { type: Boolean, default: false }
+  },
+  emits: ['update:name', 'update:expression', 'commit', 'focus-name-done'],
+  setup(props, { emit }) {
+    const nameRef = ref(null)
+    const exprRef = ref(null)
+    const exprFocused = ref(false)
+
+    const {
+      highlightLayerHtml: exprParenHighlightHtml,
+      updateParenHighlight: updateExprParenHighlight,
+      clearParenHighlight: clearExprParenHighlight
+    } = useParenHighlightLayer(
+      () => exprRef.value,
+      () => props.expression,
+      () => exprFocused.value
+    )
+
+    const preferences = usePreferencesStore()
+    const sidebarWidth = toRef(preferences, 'sidebarWidth')
+    const sceneStore = useSceneStore()
+    const editorSelectedObjIndex = ref(-1)
+
+    /** Last row state that matches the parent store; blur commits only when the row differs from this (Enter updates this nextTick so a later blur does not double-commit). */
+    const lastCommittedSnapshot = ref('')
+
+    const rowSnapshot = () => JSON.stringify({ name: props.name, expression: props.expression })
+
+    const moduleInstancesTooltipContent = computed(() => {
+      void props.name
+      void props.expression
+      void sceneStore.state.objList.length
+      void editorSelectedObjIndex.value
+
+      const nameTrim = props.name.trim()
+      if (!props.moduleName || !nameTrim) {
+        return ''
+      }
+      /** Function-style vars (`f(...) =`): skip tooltip; values are not shown in this UI. */
+      if (nameTrim.includes('(')) {
+        return ''
+      }
+      if (
+        isLiteralNumericFieldValue(props.expression) ||
+        isLiteralBooleanFieldValue(props.expression)
+      ) {
+        return ''
+      }
+
+      const instances = app.editor?.getActiveModuleInstances?.(props.moduleName)
+      if (!instances?.length) {
+        return ''
+      }
+
+      const allRows = []
+      for (const inst of instances) {
+        const v = inst?.getModuleVarValue(nameTrim)
+        const tuple = [v]
+        if (!tooltipTupleAllCellsMissing(tuple)) {
+          allRows.push(tuple)
+        }
+      }
+      return buildModuleInstanceTooltipHtml(allRows)
+    })
+
+    let moduleInstancesTooltip = null
+
+    const disposeModuleInstancesTooltip = () => {
+      if (moduleInstancesTooltip) {
+        moduleInstancesTooltip.dispose()
+        moduleInstancesTooltip = null
+      }
+    }
+
+    const showModuleInstancesTooltip = (el) => {
+      const content = moduleInstancesTooltipContent.value
+      if (!content || !el) {
+        return
+      }
+      disposeModuleInstancesTooltip()
+      moduleInstancesTooltip = new bootstrap.Tooltip(el, {
+        title: content,
+        html: true,
+        trigger: 'manual',
+        placement: 'right',
+        customClass: 'formula-input-module-tooltip'
+      })
+      nextTick(() => {
+        moduleInstancesTooltip?.show()
+      })
+    }
+
+    const onModuleInstancesMouseLeave = () => {
+      disposeModuleInstancesTooltip()
+    }
+
+    const onRowFocusOut = (event) => {
+      const container = event.currentTarget
+      if (container && !container.contains(event.relatedTarget)) {
+        if (rowSnapshot() !== lastCommittedSnapshot.value) {
+          emit('commit')
+          nextTick(() => {
+            lastCommittedSnapshot.value = rowSnapshot()
+          })
+        }
+      }
+    }
+
+    const reshowTooltipIfFocused = () => {
+      nextTick(() => {
+        const ae = document.activeElement
+        if (ae !== exprRef.value) {
+          return
+        }
+        updateExprParenHighlight()
+        if (
+          isLiteralNumericFieldValue(props.expression) ||
+          isLiteralBooleanFieldValue(props.expression)
+        ) {
+          return
+        }
+        if (!moduleInstancesTooltipContent.value) {
+          return
+        }
+        showModuleInstancesTooltip(ae)
+      })
+    }
+
+    const onEnterCommit = () => {
+      disposeModuleInstancesTooltip()
+      emit('commit')
+      nextTick(() => {
+        lastCommittedSnapshot.value = rowSnapshot()
+      })
+      reshowTooltipIfFocused()
+    }
+
+    const focusNameInput = () => {
+      const el = nameRef.value
+      if (!el) {
+        return
+      }
+      el.focus()
+      el.select()
+      emit('focus-name-done')
+    }
+
+    watch(
+      () => props.focusName,
+      (shouldFocus) => {
+        if (!shouldFocus) {
+          return
+        }
+        nextTick(() => {
+          focusNameInput()
+          autoResize()
+        })
+      },
+      { immediate: true, flush: 'post' }
+    )
+
+    const autoResize = () => {
+      for (const el of [nameRef.value, exprRef.value]) {
+        applyTextareaAutoResize(el)
+      }
+    }
+
+    let visibilityResizeObserver = null
+
+    const onNameFocus = () => {
+      autoResize()
+    }
+
+    const onNameBlur = () => {
+      nextTick(autoResize)
+    }
+
+    const onNameKeydown = (e) => {
+      e.stopPropagation()
+      if (e.key !== '=') {
+        return
+      }
+      e.preventDefault()
+      const el = exprRef.value
+      if (!el) {
+        return
+      }
+      el.focus()
+      el.select()
+    }
+
+    const onExprFocus = (e) => {
+      exprFocused.value = true
+      autoResize()
+      nextTick(() => {
+        updateExprParenHighlight()
+        const el = e?.target
+        if (el) {
+          showModuleInstancesTooltip(el)
+        }
+      })
+    }
+
+    const onExprBlur = () => {
+      disposeModuleInstancesTooltip()
+      exprFocused.value = false
+      clearExprParenHighlight()
+      nextTick(autoResize)
+    }
+
+    const onNameInput = (e) => {
+      emit('update:name', e.target.value)
+      nextTick(autoResize)
+    }
+
+    const onExprInput = (e) => {
+      emit('update:expression', e.target.value)
+      disposeModuleInstancesTooltip()
+      nextTick(() => {
+        autoResize()
+        updateExprParenHighlight()
+      })
+    }
+
+    watch(
+      () => props.name,
+      () => nextTick(autoResize)
+    )
+
+    watch(
+      () => props.expression,
+      () => nextTick(autoResize)
+    )
+
+    watch(sidebarWidth, () => nextTick(autoResize))
+
+    const syncEditorSelection = () => {
+      editorSelectedObjIndex.value = app.editor?.selectedObjIndex ?? -1
+    }
+
+    const onSceneObjSelectionChanged = (event) => {
+      editorSelectedObjIndex.value = event?.detail?.index ?? -1
+    }
+
+    const onSceneStructureMaybeChanged = () => {
+      syncEditorSelection()
+    }
+
+    onMounted(() => {
+      lastCommittedSnapshot.value = rowSnapshot()
+      syncEditorSelection()
+      document.addEventListener('sceneObjSelectionChanged', onSceneObjSelectionChanged)
+      document.addEventListener('sceneChanged', onSceneStructureMaybeChanged)
+      document.addEventListener('sceneObjsChanged', onSceneStructureMaybeChanged)
+      nextTick(autoResize)
+      visibilityResizeObserver = observeTextareasResizeWhenVisible(
+        () => [nameRef.value, exprRef.value],
+        autoResize
+      )
+    })
+
+    onBeforeUnmount(() => {
+      visibilityResizeObserver?.disconnect()
+      visibilityResizeObserver = null
+      document.removeEventListener('sceneObjSelectionChanged', onSceneObjSelectionChanged)
+      document.removeEventListener('sceneChanged', onSceneStructureMaybeChanged)
+      document.removeEventListener('sceneObjsChanged', onSceneStructureMaybeChanged)
+      disposeModuleInstancesTooltip()
+    })
+
+    return {
+      nameRef,
+      exprRef,
+      exprParenHighlightHtml,
+      onNameInput,
+      onExprInput,
+      autoResize,
+      onRowFocusOut,
+      onEnterCommit,
+      onNameFocus,
+      onNameBlur,
+      onNameKeydown,
+      onExprFocus,
+      onExprBlur,
+      onModuleInstancesMouseLeave,
+      updateExprParenHighlight
+    }
+  }
+}
+</script>
+
+<style scoped>
+.module-var-item {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 4px 8px;
+  width: 100%;
+  padding-left: 3px;
+  padding-right: 4px;
+  box-sizing: border-box;
+}
+
+.module-var-name-wrap {
+  flex: 0 0 25%;
+  min-width: 0;
+}
+
+.module-var-tooltip-host {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.module-var-expr-stack {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.module-var-expr-stack:focus-within {
+  border-color: rgba(120, 198, 255, 0.6);
+}
+
+.module-var-expr-highlight-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  box-sizing: border-box;
+  margin: 0;
+  font-size: 12px;
+  font-family: monospace;
+  line-height: 1.4;
+  padding: 3px 6px;
+  white-space: pre-wrap;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: transparent;
+  pointer-events: none;
+}
+
+.module-var-expr-highlight-layer :deep(.paren-highlight-match) {
+  background: rgba(120, 198, 255, 0.35);
+  border-radius: 2px;
+}
+
+.module-var-equals {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 12px;
+  font-family: monospace;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.4;
+  padding: 3px 0;
+}
+
+.module-var-name {
+  display: block;
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+  font-size: 12px;
+  font-family: monospace;
+  line-height: 1.4;
+  padding: 3px 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  color: #fff;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.module-var-expr {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+  font-size: 12px;
+  font-family: monospace;
+  line-height: 1.4;
+  padding: 3px 6px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  field-sizing: content;
+}
+
+.module-var-name:focus {
+  outline: none;
+  border-color: rgba(120, 198, 255, 0.6);
+}
+
+.module-var-expr:focus {
+  outline: none;
+}
+</style>
+
+<!-- Tooltips mount on body; match FormulaInput -->
+<style>
+.tooltip.formula-input-module-tooltip .tooltip-inner {
+  text-align: left;
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.4;
+}
+</style>

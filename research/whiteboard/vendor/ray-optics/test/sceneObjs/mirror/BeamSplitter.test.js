@@ -1,0 +1,181 @@
+/*
+ * Copyright 2024 The Ray Optics Simulation authors and contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import BeamSplitter from '../../../src/core/sceneObjs/mirror/BeamSplitter';
+import Scene from '../../../src/core/Scene';
+import { createDagClosureEvaluator } from '../../../src/core/formula/dag-evaluator';
+import { testLineObj } from '../helpers/lineObjTests';
+import { MockUser } from '../helpers/test-utils';
+
+describe('BeamSplitter', () => {
+  let scene;
+  let obj;
+  let user;
+
+  beforeEach(() => {
+    scene = new Scene();
+    obj = new BeamSplitter(scene);
+    user = new MockUser(obj);
+  });
+
+  testLineObj(() => ({ obj, user }));
+
+  it('rotates 90 degrees around default center (midpoint)', () => {
+    user.click(100, 100);
+    user.click(200, 300);
+
+    user.rotate(Math.PI / 2); // 90 degrees counter-clockwise
+    const result = obj.serialize();
+    expect(result.p1.x).toBeCloseTo(250, 5);
+    expect(result.p1.y).toBeCloseTo(150, 5);
+    expect(result.p2.x).toBeCloseTo(50, 5);
+    expect(result.p2.y).toBeCloseTo(250, 5);
+    expect(result.type).toBe('BeamSplitter');
+  });
+
+  it('scales to 50% around default center (midpoint)', () => {
+    user.click(100, 100);
+    user.click(200, 300);
+
+    user.scale(0.5); // Scale to 50%
+    const result = obj.serialize();
+    expect(result.p1.x).toBeCloseTo(125, 5);
+    expect(result.p1.y).toBeCloseTo(150, 5);
+    expect(result.p2.x).toBeCloseTo(175, 5);
+    expect(result.p2.y).toBeCloseTo(250, 5);
+    expect(result.type).toBe('BeamSplitter');
+  });
+
+  it('sets properties for non-filter mode', () => {
+    user.click(100, 100);
+    user.click(200, 300);
+    expect(user.get("{{simulator:sceneObjs.BaseFilter.filter}}")).toBeNull();
+  });
+
+  it('sets properties for filter mode', () => {
+    user.click(100, 100);
+    user.click(200, 300);
+    user.setScene('simulateColors', true);
+    user.set("{{simulator:sceneObjs.BaseFilter.filter}}", true);
+    user.set("{{simulator:sceneObjs.common.wavelength}}", 500);
+    user.set("{{simulator:sceneObjs.BaseFilter.bandwidth}}", 20);
+    user.set("{{simulator:sceneObjs.BaseFilter.invert}}", true);
+
+    expect(obj.serialize()).toEqual({
+      type: "BeamSplitter",
+      p1: { x: 100, y: 100 },
+      p2: { x: 200, y: 300 },
+      filter: true,
+      wavelength: 500,
+      bandwidth: 20,
+      invert: true
+    });
+  });
+
+  it('creates a filtered two-output surface primitive', () => {
+    scene.simulateColors = true;
+    obj.p1 = { x: 0, y: 0 };
+    obj.p2 = { x: 10, y: 0 };
+    obj.transRatio = 0.3;
+    obj.filter = true;
+    obj.wavelength = 500;
+    obj.bandwidth = 20;
+    obj.invert = true;
+
+    const primitive = obj.getPrimitives()[0];
+    const evaluate = createDagClosureEvaluator(primitive.surfaceType.dag);
+    const rays = evaluate({
+      ...primitive.params,
+      d_0x: 0.6,
+      d_0y: -0.8,
+      P_0s: 0.4,
+      P_0p: 0.6
+    });
+
+    expect(primitive.curve).toEqual({
+      kind: 'lineSegment',
+      params: {
+        start: { x: 0, y: 0 },
+        end: { x: 10, y: 0 }
+      }
+    });
+    expect(primitive.twoSided).toBe(true);
+    expect(primitive.surfaceType.mergesWithBoundary).toBe(false);
+    expect(primitive.filter).toEqual({
+      wavelength: 500,
+      bandwidth: 20,
+      invert: true
+    });
+    expect(primitive.surfaceType.outRayCount).toBe(2);
+    expect([rays.d_1x, rays.d_1y]).toEqual([0.6, 0.8]);
+    expect(rays.P_1s).toBeCloseTo(0.28);
+    expect(rays.P_1p).toBeCloseTo(0.42);
+    expect([rays.d_2x, rays.d_2y]).toEqual([0.6, -0.8]);
+    expect(rays.P_2s).toBeCloseTo(0.12);
+    expect(rays.P_2p).toBeCloseTo(0.18);
+  });
+
+  it('uses the scene ray-power cutoff in the legacy interaction', () => {
+    obj.p1 = { x: 0, y: -1 };
+    obj.p2 = { x: 0, y: 1 };
+    obj.transRatio = 0.005;
+    scene.colorMode = 'linear';
+    scene.rayPowerCutoff = 0.01;
+    const ray = {
+      p1: { x: -1, y: 0 },
+      p2: { x: 1, y: 0 },
+      brightness_s: 1,
+      brightness_p: 0
+    };
+
+    expect(obj.onRayIncident(ray, 0, { x: 0, y: 0 })).toMatchObject({
+      truncation: 0.005
+    });
+  });
+
+  it('uses the legacy 1e-6 cutoff with correct brightness by default', () => {
+    obj.p1 = { x: 0, y: -1 };
+    obj.p2 = { x: 0, y: 1 };
+    obj.transRatio = 5e-7;
+    scene.colorMode = 'linear';
+    const ray = {
+      p1: { x: -1, y: 0 },
+      p2: { x: 1, y: 0 },
+      brightness_s: 1,
+      brightness_p: 0
+    };
+
+    expect(obj.onRayIncident(ray, 0, { x: 0, y: 0 })).toMatchObject({
+      truncation: 5e-7
+    });
+  });
+
+  it('uses the fixed 0.01 cutoff when correct brightness is off', () => {
+    obj.p1 = { x: 0, y: -1 };
+    obj.p2 = { x: 0, y: 1 };
+    obj.transRatio = 0.02;
+    scene.rayPowerCutoff = 0.1;
+    const ray = {
+      p1: { x: -1, y: 0 },
+      p2: { x: 1, y: 0 },
+      brightness_s: 1,
+      brightness_p: 0
+    };
+
+    expect(obj.onRayIncident(ray, 0, { x: 0, y: 0 }).newRays)
+      .toHaveLength(1);
+  });
+});

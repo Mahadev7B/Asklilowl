@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "importedOn": "2026-09-18",
+  "strategy": "Unmodified tracked source snapshots; no submodules or installed dependencies",
+  "projects": [
+    {
+      "name": "Inkplainer-OS",
+      "repository": "https://github.com/NadirWeb-App/Inkplainer-OS",
+      "upstreamCommit": "760af54d3c7e0cf3a846fdf3c7bbe278c9f6df3e",
+      "upstreamTree": "84655892c19be80fc8ecdca939be0841c1605ce2",
+      "path": "research/whiteboard/vendor/inkplainer",
+      "license": "Apache-2.0",
+      "licenseFile": "LICENSE",
+      "trackedFiles": 49,
+      "role": "Whiteboard drawing engine and hand assets",
+      "modified": false
+    },
+    {
+      "name": "Excalimate",
+      "repository": "https://github.com/excalimate/excalimate",
+      "upstreamCommit": "e12ec8001148d09c750badf71d3da4c97fb3fbbb",
+      "upstreamTree": "115e86afe8f7756583e1279c0c5e864faaa8d712",
+      "path": "research/whiteboard/vendor/excalimate",
+      "license": "MIT",
+      "licenseFile": "LICENSE",
+      "trackedFiles": 624,
+      "role": "Animated diagram templates, timelines, and browser player",
+      "modified": false
+    },
+    {
+      "name": "ExcaliMath",
+      "repository": "https://github.com/tamerUAE/excalimath",
+      "upstreamCommit": "5b43096b82c8157b99ec6bea1973886eac3538f7",
+      "upstreamTree": "2ee53f8858d9076d0cedabfda8e6fab9a27b777b",
+      "path": "research/whiteboard/vendor/excalimath",
+      "license": "MIT",
+      "licenseFile": "LICENSE",
+      "trackedFiles": 68,
+      "role": "Static STEM artwork, equations, and graph templates",
+      "modified": false
+    },
+    {
+      "name": "Ray Optics Simulation",
+      "repository": "https://github.com/ricktu288/ray-optics",
+      "upstreamCommit": "e55947ecf4cc86724085ec07b774f85e4b7dea46",
+      "upstreamTree": "9c4f937767fec5e5409a215aede2e064c1a63a3d",
+      "path": "research/whiteboard/vendor/ray-optics",
+      "license": "Apache-2.0",
+      "licenseFile": "LICENSE",
+      "trackedFiles": 1079,
+      "role": "Optics simulation and reusable scene data, including rainbows",
+      "modified": false
+    }
+  ]
+}

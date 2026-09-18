@@ -1,0 +1,186 @@
+---
+import {
+  ANALYTICS_EVENT_DEFINITIONS,
+  CONSENT_SCHEMA_VERSION,
+  CONSENT_STORAGE_KEY,
+  POSTHOG_TECHNICAL_PROPERTIES,
+} from '../../../src/services/privacy/dataInventory';
+
+const posthogKey = import.meta.env.PUBLIC_POSTHOG_KEY ?? '';
+const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST ?? 'https://eu.i.posthog.com';
+const landingEventProperties = Object.fromEntries(
+  (['landing_page_viewed', 'landing_external_link_clicked'] as const).map((event) => [
+    event,
+    Object.keys(ANALYTICS_EVENT_DEFINITIONS[event].properties),
+  ]),
+);
+---
+
+{posthogKey && (
+  <script
+    is:inline
+    define:vars={{
+      posthogKey,
+      posthogHost,
+      consentKey: CONSENT_STORAGE_KEY,
+      consentVersion: CONSENT_SCHEMA_VERSION,
+      landingEventProperties,
+      technicalProperties: POSTHOG_TECHNICAL_PROPERTIES,
+    }}
+  >
+    (function () {
+      var initialized = false;
+      var enabled = false;
+      var pageCaptured = false;
+
+      function hasConsent() {
+        try {
+          var raw = localStorage.getItem(consentKey);
+          if (!raw) return false;
+          var value = JSON.parse(raw);
+          return value.version === consentVersion && value.state && value.state.analytics === true;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function clearPersistence() {
+        [localStorage, sessionStorage].forEach(function (storage) {
+          for (var index = storage.length - 1; index >= 0; index -= 1) {
+            var key = storage.key(index);
+            if (key && key.indexOf('ph_') === 0) storage.removeItem(key);
+          }
+        });
+        document.cookie.split(';').forEach(function (entry) {
+          var name = entry.split('=')[0].trim();
+          if (name.indexOf('ph_') === 0) {
+            document.cookie = name + '=; Max-Age=0; path=/; SameSite=Lax';
+          }
+        });
+      }
+
+      function pageCategory(path) {
+        if (path === '/') return 'home';
+        if (path === '/privacy') return 'privacy';
+        if (path.indexOf('/guides/') === 0) return 'guide';
+        if (path === '/guides') return 'guides_index';
+        if (path.indexOf('/compare/') === 0) return 'comparison';
+        if (path === '/compare') return 'comparisons_index';
+        return 'other_public_page';
+      }
+
+      function sanitize(capture) {
+        if (!capture || !landingEventProperties[capture.event]) return null;
+        var allowed = technicalProperties.concat(landingEventProperties[capture.event]);
+        var properties = {};
+        Object.keys(capture.properties || {}).forEach(function (key) {
+          if (allowed.indexOf(key) !== -1) properties[key] = capture.properties[key];
+        });
+        capture.properties = properties;
+        delete capture.$set;
+        delete capture.$set_once;
+        delete capture.$unset;
+        return capture;
+      }
+
+      function bootstrap() {
+        if (initialized || !enabled) return;
+        initialized = true;
+
+        !(function (t, e) {
+          var o, n, p, r;
+          e.__SV ||
+            ((window.posthog = e),
+            (e._i = []),
+            (e.init = function (i, s, a) {
+              function g(target, method) {
+                var parts = method.split('.');
+                if (parts.length === 2) {
+                  target = target[parts[0]];
+                  method = parts[1];
+                }
+                target[method] = function () {
+                  target.push([method].concat(Array.prototype.slice.call(arguments, 0)));
+                };
+              }
+              p = t.createElement('script');
+              p.type = 'text/javascript';
+              p.async = true;
+              p.src = s.api_host.replace('.i.posthog.com', '-assets.i.posthog.com') + '/static/array.js';
+              r = t.getElementsByTagName('script')[0];
+              r.parentNode.insertBefore(p, r);
+              var u = e;
+              if (a !== undefined) u = e[a] = [];
+              else a = 'posthog';
+              u.people = u.people || [];
+              o = 'init capture opt_out_capturing opt_in_capturing has_opted_out_capturing reset'.split(' ');
+              for (n = 0; n < o.length; n += 1) g(u, o[n]);
+              e._i.push([i, s, a]);
+            }),
+            (e.__SV = 1));
+        })(document, window.posthog || []);
+
+        window.posthog.init(posthogKey, {
+          api_host: posthogHost,
+          person_profiles: 'never',
+          autocapture: false,
+          rageclick: false,
+          capture_pageview: false,
+          capture_pageleave: false,
+          capture_performance: false,
+          disable_session_recording: true,
+          disable_surveys: true,
+          disable_surveys_automatic_display: true,
+          disable_product_tours: true,
+          disable_web_experiments: true,
+          advanced_disable_flags: true,
+          advanced_disable_feature_flags: true,
+          advanced_disable_feature_flags_on_first_load: true,
+          disableDeviceModel: true,
+          disable_capture_url_hashes: true,
+          save_referrer: false,
+          save_campaign_params: false,
+          persistence: 'memory',
+          disable_persistence: true,
+          respect_dnt: true,
+          before_send: sanitize,
+        });
+      }
+
+      function capture(event, properties) {
+        if (!enabled || !landingEventProperties[event]) return;
+        bootstrap();
+        window.posthog.capture(event, properties || {});
+      }
+
+      function capturePage() {
+        if (pageCaptured) return;
+        pageCaptured = true;
+        capture('landing_page_viewed', { page: pageCategory(window.location.pathname) });
+      }
+
+      window.excalimateAnalytics = {
+        enable: function () {
+          enabled = true;
+          bootstrap();
+          if (window.posthog && window.posthog.has_opted_out_capturing()) {
+            window.posthog.opt_in_capturing();
+          }
+          capturePage();
+        },
+        disable: function () {
+          enabled = false;
+          if (window.posthog) {
+            window.posthog.opt_out_capturing();
+            window.posthog.reset(true);
+          }
+          clearPersistence();
+        },
+        capture: capture,
+      };
+
+      if (hasConsent()) window.excalimateAnalytics.enable();
+      else clearPersistence();
+    })();
+  </script>
+)}

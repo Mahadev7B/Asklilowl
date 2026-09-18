@@ -1,0 +1,196 @@
+import { useState, useEffect, useRef } from 'react';
+import { ActionIcon, Alert, Button, Group, Modal, Stack, TextInput, Tooltip } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { nprogress } from '@mantine/nprogress';
+import {
+  IconGhost,
+  IconBroadcast,
+  IconBroadcastOff,
+  IconAlertTriangle,
+  IconServer,
+} from '@tabler/icons-react';
+import { FileControls } from './FileControls';
+import { ModeSwitcher } from './ModeSwitcher';
+import { ThemeToggle } from './ThemeToggle';
+import { ExportControls } from './ExportControls';
+import { AudioControls } from './AudioControls';
+import { InfoLinks } from './InfoLinks';
+import { useUIStore } from '../../stores/uiStore';
+import { useMcpLive, getMcpUrl } from '../../hooks/useMcpLive';
+import { WorkspaceSwitcher } from '../Workspace/WorkspaceSwitcher';
+
+export function Toolbar({ legacyShell = false }: { legacyShell?: boolean }) {
+  const ghostMode = useUIStore((s) => s.ghostMode);
+  const theme = useUIStore((s) => s.theme);
+  const { connected, status, connect, disconnect, setLiveUrl, lastError, clearError } = useMcpLive();
+  const [manualConnectionError, setManualConnectionError] = useState<string | null>(null);
+  const [connectionUrl, setConnectionUrl] = useState(getMcpUrl());
+  const showConnectionError = Boolean(lastError) || Boolean(manualConnectionError);
+  const isMixedContent = window.location.protocol === 'https:' && connectionUrl.startsWith('http://');
+
+  // Track status changes for nprogress + connecting notification
+  const prevStatusRef = useRef(status);
+  const connectingNotifId = useRef<string | null>(null);
+
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = status;
+
+    if (status === 'connecting' && prev !== 'connecting') {
+      // Show progress bar and connecting notification
+      nprogress.start();
+      connectingNotifId.current = 'mcp-connecting';
+      notifications.show({
+        id: 'mcp-connecting',
+        loading: true,
+        title: 'Connecting to MCP server',
+        message: connectionUrl,
+        autoClose: false,
+        withCloseButton: false,
+      });
+    } else if (status === 'connected' && prev !== 'connected') {
+      nprogress.complete();
+      notifications.hide('mcp-connecting');
+      notifications.show({
+        title: 'Connected',
+        message: `Live preview active — ${connectionUrl}`,
+        color: 'green',
+        autoClose: 3000,
+      });
+    } else if (status === 'disconnected' && prev === 'connecting') {
+      // Connection attempt failed
+      nprogress.complete();
+      notifications.hide('mcp-connecting');
+    } else if (status === 'reconnecting') {
+      nprogress.start();
+    } else if (status === 'disconnected' && prev === 'reconnecting') {
+      nprogress.complete();
+    }
+  }, [status, connectionUrl]);
+
+  const handleLiveClick = () => {
+    if (connected) {
+      disconnect();
+      notifications.show({
+        title: 'Disconnected',
+        message: 'MCP live preview disconnected.',
+        color: 'gray',
+        autoClose: 2000,
+      });
+      return;
+    }
+
+    clearError();
+    setConnectionUrl(getMcpUrl());
+    try {
+      connect();
+    } catch (error) {
+      setManualConnectionError(
+        error instanceof Error ? error.message : 'The MCP preview pairing URL is invalid.',
+      );
+    }
+  };
+
+  const handleRetryConnection = () => {
+    setLiveUrl(connectionUrl);
+    clearError();
+    setManualConnectionError(null);
+    try {
+      connect(connectionUrl);
+    } catch (error) {
+      setManualConnectionError(
+        error instanceof Error ? error.message : 'The MCP preview pairing URL is invalid.',
+      );
+    }
+  };
+
+  return (
+    <header role="toolbar" aria-label="Main toolbar" className="bg-surface border-border shadow-float mx-2 my-2 flex items-center h-10 px-3 gap-1.5 border rounded-lg select-none">
+      {/* Left section: Logo and file controls */}
+      <div className="flex items-center gap-1 mr-4">
+        <img src={theme === 'dark' ? '/excalimate_logo_dark.svg' : '/excalimate_logo.svg'} alt="Excalimate logo" className="w-auto h-5 mr-2" />
+        <div data-hint="file"><FileControls /></div>
+      </div>
+
+      {/* Center section: Mode switcher */}
+      <div className="flex-1 flex justify-center items-center gap-3" data-hint="mode">
+        {!legacyShell && <WorkspaceSwitcher />}
+        <ModeSwitcher />
+      </div>
+
+      {/* Right section */}
+      <div className="flex items-center gap-1">
+        <span data-hint="ghost">
+        <Tooltip label="Ghost Mode">
+          <ActionIcon
+            variant={ghostMode ? 'light' : 'subtle'}
+            color={ghostMode ? 'indigo' : 'gray'}
+            size="sm"
+            onClick={() => useUIStore.getState().toggleGhostMode()}
+          >
+            <IconGhost size={16} />
+          </ActionIcon>
+        </Tooltip>
+        </span>
+        <span data-hint="live">
+        <Tooltip label={connected ? 'Disconnect from MCP server' : 'Connect to MCP live'}>
+          <ActionIcon
+            variant={connected ? 'light' : 'subtle'}
+            color={connected ? 'green' : 'gray'}
+            size="sm"
+            onClick={handleLiveClick}
+          >
+            {connected ? <IconBroadcast size={16} /> : <IconBroadcastOff size={16} />}
+          </ActionIcon>
+        </Tooltip>
+        </span>
+        <div className="w-px h-5 bg-border mx-1" />
+        <AudioControls />
+        <ExportControls />
+        <div className="w-px h-5 bg-border mx-1" />
+        <ThemeToggle />
+        <InfoLinks />
+      </div>
+      <Modal
+        opened={showConnectionError}
+        onClose={() => {
+          setManualConnectionError(null);
+          clearError();
+        }}
+        title="Connection Failed"
+        centered
+      >
+        <Stack gap="sm">
+          <Alert
+            variant="light"
+            color="yellow"
+            title="Could not connect to the MCP server"
+            icon={<IconAlertTriangle size={18} />}
+          >
+            {manualConnectionError ??
+              'Check that the paired MCP session is still running and the preview URL is correct.'}
+          </Alert>
+          {isMixedContent && (
+            <Alert variant="light" color="orange" title="Mixed content blocked" icon={<IconAlertTriangle size={18} />}>
+              Your browser blocks connections from HTTPS pages to HTTP servers. Either run the MCP server with HTTPS, or access Excalimate via HTTP.
+            </Alert>
+          )}
+          <TextInput
+            label="Preview pairing URL"
+            description="Paste the pairing URL printed after your MCP client connects"
+            placeholder="http://127.0.0.1:3001/p/preview-id"
+            value={connectionUrl}
+            onChange={(e) => setConnectionUrl(e.currentTarget.value)}
+            leftSection={<IconServer size={14} />}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => { setManualConnectionError(null); clearError(); }}>
+              Cancel
+            </Button>
+            <Button onClick={handleRetryConnection}>Retry</Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </header>
+  );
+}

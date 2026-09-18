@@ -1,0 +1,136 @@
+/**
+ * Checkpoint persistence — save/load scene + animation state.
+ */
+
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import type { ServerState } from './types.js';
+import { parseServerState, serializeServerState } from './state.js';
+
+const MAX_CHECKPOINT_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_CHECKPOINTS = 100;
+
+function validateId(id: string): void {
+  if (!/^[a-zA-Z0-9_-]+$/.test(id) || id.length > 64) {
+    throw new Error('Invalid checkpoint ID: alphanumeric/hyphens/underscores, max 64 chars');
+  }
+}
+
+export interface CheckpointStore {
+  save(id: string, data: ServerState): Promise<void>;
+  load(id: string): Promise<ServerState | null>;
+  list(): Promise<string[]>;
+}
+
+export class FileCheckpointStore implements CheckpointStore {
+  private dir: string;
+
+  constructor() {
+    this.dir = path.join(os.tmpdir(), 'excalimate-mcp-checkpoints');
+    fs.mkdirSync(this.dir, { recursive: true });
+  }
+
+  async save(id: string, data: ServerState): Promise<void> {
+    validateId(id);
+    const serialized = serializeServerState(data);
+    if (Buffer.byteLength(serialized, 'utf8') > MAX_CHECKPOINT_BYTES) {
+      throw new Error(`Checkpoint exceeds ${MAX_CHECKPOINT_BYTES} byte limit`);
+    }
+    const filePath = path.join(this.dir, `${id}.json`);
+    if (!path.resolve(filePath).startsWith(path.resolve(this.dir) + path.sep)) {
+      throw new Error('Invalid checkpoint path');
+    }
+    await fs.promises.writeFile(filePath, serialized);
+    await this.prune();
+  }
+
+  async load(id: string): Promise<ServerState | null> {
+    validateId(id);
+    const filePath = path.join(this.dir, `${id}.json`);
+    if (!path.resolve(filePath).startsWith(path.resolve(this.dir) + path.sep)) {
+      throw new Error('Invalid checkpoint path');
+    }
+    try {
+      const raw = await fs.promises.readFile(filePath, 'utf-8');
+      return parseServerState(JSON.parse(raw));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw error;
+    }
+  }
+
+  async list(): Promise<string[]> {
+    try {
+      const entries = await fs.promises.readdir(this.dir);
+      return entries.filter(f => f.endsWith('.json')).map(f => f.replace('.json', ''));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      throw error;
+    }
+  }
+
+  private _pruning = false;
+
+  private async prune(): Promise<void> {
+    // Serialize prune operations to avoid concurrent filesystem races
+    if (this._pruning) return;
+    this._pruning = true;
+    try {
+      const entries = await fs.promises.readdir(this.dir);
+      const jsonFiles = entries.filter(f => f.endsWith('.json'));
+      if (jsonFiles.length <= MAX_CHECKPOINTS) return;
+      const stats = await Promise.all(
+        jsonFiles.map(async f => ({
+          name: f,
+          mtime: (await fs.promises.stat(path.join(this.dir, f))).mtimeMs,
+        })),
+      );
+      stats.sort((a, b) => a.mtime - b.mtime);
+      const toRemove = stats.slice(0, stats.length - MAX_CHECKPOINTS);
+      await Promise.all(toRemove.map(async f => {
+        try {
+          await fs.promises.unlink(path.join(this.dir, f.name));
+        } catch (err: unknown) {
+          const code = (err as NodeJS.ErrnoException).code;
+          // ENOENT is expected (concurrent delete) — log anything else
+          if (code !== 'ENOENT') {
+            console.warn(`[checkpoint] Failed to prune ${f.name}`);
+          }
+        }
+      }));
+    } catch {
+      console.warn('[checkpoint] Prune scan failed');
+    } finally {
+      this._pruning = false;
+    }
+  }
+}
+
+export class MemoryCheckpointStore implements CheckpointStore {
+  private store = new Map<string, string>();
+
+  async save(id: string, data: ServerState): Promise<void> {
+    validateId(id);
+    const serialized = serializeServerState(data);
+    if (Buffer.byteLength(serialized, 'utf8') > MAX_CHECKPOINT_BYTES) {
+      throw new Error('Checkpoint too large');
+    }
+    this.store.set(id, serialized);
+    if (this.store.size > MAX_CHECKPOINTS) {
+      const oldest = this.store.keys().next().value;
+      if (oldest !== undefined) this.store.delete(oldest);
+    }
+  }
+
+  async load(id: string): Promise<ServerState | null> {
+    validateId(id);
+    const raw = this.store.get(id);
+    if (!raw) return null;
+    return parseServerState(JSON.parse(raw));
+  }
+
+  async list(): Promise<string[]> {
+    return [...this.store.keys()];
+  }
+}

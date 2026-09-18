@@ -77,3 +77,10 @@ A `render.yaml` is included so this can later be deployed as a separate Render s
 ## Security note
 
 Never commit API keys, database passwords, OAuth secrets, or signed temporary file URLs to this repository.
+
+## Animation research
+
+The [whiteboard research collection](research/whiteboard/README.md) contains pinned
+source snapshots of Inkplainer, Excalimate, ExcaliMath, and Ray Optics, with licenses,
+upstream versions, and a reuse index. These are research materials only and are not
+connected to the app runtime.
