@@ -92,8 +92,8 @@ test("HTTP boundary rejects declared MCP bodies larger than two MiB", async (t) 
 
 test("production and demo MCP servers expose only their intended tools", async (t) => {
   for (const [demoMode, expectedTools] of [
-    [false, ["prepare_lesson", "create_lesson", "create_diagram_lesson"]],
-    [true, ["prepare_lesson", "create_lesson", "create_diagram_lesson", "preview_demo_lesson"]],
+    [false, ["prepare_lesson", "report_lesson_diagnostic", "create_lesson", "create_diagram_lesson"]],
+    [true, ["prepare_lesson", "report_lesson_diagnostic", "create_lesson", "create_diagram_lesson", "preview_demo_lesson"]],
   ]) {
     const { server, origin } = await startServer({
       demoMode,
@@ -415,7 +415,8 @@ test("production MCP returns schema-conformant lessons and actionable quiz error
   });
   assert.equal(invalid.isError, true);
   assert.match(invalid.content[0].text, /answerIndex outside/);
-  assert.deepEqual(events, []);
+  assert.deepEqual(events.map(event => event.event), ["lesson_stage_failed", "lesson_submission_failed"]);
+  assert.equal(events[0].stage, "content_validation");
 });
 
 test("production records safe image-handoff diagnostics before narration", async (t) => {
@@ -474,10 +475,13 @@ test("production records safe image-handoff diagnostics before narration", async
     },
   });
 
-  assert.equal(events.length, 1);
-  assert.equal(events[0].imageCount, 3);
-  assert.equal(events[0].fileIdCount, 3);
-  assert.deepEqual(events[0].received[0], {
+  const handoffs = events.filter(event => event.event === "lesson_image_handoff_received");
+  assert.equal(handoffs.length, 1);
+  assert.equal(handoffs[0].imageCount, 3);
+  assert.equal(handoffs[0].fileIdCount, 3);
+  assert.ok(events.every(event => event.diagnosticId === handoffs[0].diagnosticId));
+  assert.ok(events.some(event => event.event === "lesson_ready"));
+  assert.deepEqual(handoffs[0].received[0], {
     type: "object",
     keys: ["download_url", "file_id"],
     valueTypes: { download_url: "string", file_id: "string" },
@@ -533,10 +537,11 @@ test("production rejects malformed native file contracts before narration", asyn
     events.length = 0;
     const result = await client.callTool({ name: "create_lesson", arguments: { ...base, ...(images === undefined ? {} : { images }) } });
     assert.equal(Boolean(result.isError), shouldError, name);
-    assert.equal(events.length, shouldError ? 0 : 1, name);
+    const handoffs = events.filter(event => event.event === "lesson_image_handoff_received");
+    assert.equal(handoffs.length, shouldError ? 0 : 1, name);
     if (shouldError) continue;
-    assert.equal(events[0].imageCount, expectedLog.imageCount, name);
-    assert.deepEqual(events[0].received.slice(0, 1).map(({ type, keys, valueTypes }) => ({ type, keys, valueTypes })), expectedLog.received, name);
+    assert.equal(handoffs[0].imageCount, expectedLog.imageCount, name);
+    assert.deepEqual(handoffs[0].received.slice(0, 1).map(({ type, keys, valueTypes }) => ({ type, keys, valueTypes })), expectedLog.received, name);
   }
   assert.equal(narrationCalls, 1);
 });
@@ -647,5 +652,10 @@ test("lesson failures log only sanitized voice-provider diagnostics", async (t) 
   });
 
   assert.equal(result.isError, true);
-  assert.deepEqual(events, [{ event: "lesson_voice_generation_failed", provider: "voice", status: 429, code: "insufficient_quota", message: "Voice quota unavailable" }]);
+  assert.deepEqual(events.filter(e => e.event === "lesson_voice_generation_failed"), [{ event: "lesson_voice_generation_failed", provider: "voice", status: 429, code: "insufficient_quota", message: "Voice quota unavailable" }]);
+  const stageFailure = events.find(e => e.event === "lesson_stage_failed");
+  assert.equal(stageFailure.stage, "narration_preparation");
+  assert.equal(stageFailure.evidence, "server_observed");
+  assert.match(stageFailure.diagnosticId, /^[0-9a-f-]{36}$/);
+  assert.equal(events.find(e => e.event === "lesson_submission_failed").diagnosticId, stageFailure.diagnosticId);
 });
